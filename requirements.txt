@@ -10,16 +10,4 @@ Pillow
 tqdm
 python-dotenv
 tiktoken
-requestspydantic
-anthropic
-openai
-groq
-cohere
-elevenlabs
-beautifulsoup4
-fake-useragent
-Pillow
-tqdm
-python-dotenv
-tiktoken
 requests
