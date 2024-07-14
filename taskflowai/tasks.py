@@ -1,7 +1,6 @@
 from taskflowai.task import Task
 from typing import List, Dict, Union, Optional, Tuple
 import json, re, base64, os
-import imghdr
 
 class ChatTasks:
 
@@ -92,48 +91,6 @@ class ImageTasks:
         # Execute the task with the image data
         description = task.execute()
         return description.strip()
-
-    @staticmethod
-    def examine_sketch(llm, user_input: str, image_data: Union[str, List[str]], additional_designer_context: str = None):
-        def process_image(img_data: str) -> str:
-            if img_data.startswith(('data:image/', 'http://', 'https://')):
-                return img_data  # Already properly formatted or a URL
-            
-            if os.path.isfile(img_data):
-                # It's a file path, read and encode
-                with open(img_data, 'rb') as img_file:
-                    img_bytes = img_file.read()
-                img_type = imghdr.what(None, h=img_bytes)
-                base64_img = base64.b64encode(img_bytes).decode('utf-8')
-            else:
-                # Assume it's already a base64 string
-                base64_img = img_data
-                img_type = 'png'  # Default to PNG
-
-            return base64_img  # Return just the base64 string
-
-        # Process image data
-        if isinstance(image_data, str):
-            image_data = [image_data]
-        processed_images = [process_image(img) for img in image_data]
-
-        additional_context = f"Additional context to consider from design system:\n{additional_designer_context}.\n\nAlso consider briefly which components and icons would be helpful or valuable for a professional design, and where they should be used." if additional_designer_context else ""
-            
-        image_instruction = "You've also been provided a sketch of the intended design. Please first describe the image provided, and integrate the intentions of the sketch in your design." if image_data else ""
-        
-        task = Task(
-            role="product designer with expertise in user experience, user interface design, development, and visual aesthetics",
-            goal="carefully analyze the user's input and provided sketch and articulate and interpret it into a software design architectural wireframe understanding",
-            attributes="you're thorough and you describe what you see, interpreting it into software design terms, helping bring in the Directors request and ideas into your design process",
-            context=f"Director's request: {user_input}\n\n{additional_context}\n\n{image_instruction}",
-            instruction=f"""
-Carefully analyze the sketch provided and think out loud about the Directors request, the sketch, and what the design should be. Describe the design in the finest possible detail, in software development terminology, for the developer who forgot their glasses today at work. You should be discussing at length the structure of the design in CSS or React terminology. They depend on you to describe the sketch so they can build it. Outline the Information Architecture of the sketched design, its apparent User Interface, and any apparent Visual Design. Ensure that your depiction is exhaustive, detailed, well-structured, coherent, and provides a clear direction for the product design.
-            """,
-            llm=llm,
-            image_data=processed_images
-        )
-        return task.execute()
-
 
 class ResearchTasks:
 
