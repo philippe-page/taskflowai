@@ -3,7 +3,6 @@ from typing import List, Union
 from anthropic import Anthropic, APIStatusError, APITimeoutError, APIConnectionError, APIResponseValidationError, RateLimitError
 from openai.types.chat import ChatCompletion
 from openai import OpenAI, APIError, APIConnectionError, APITimeoutError, RateLimitError, AuthenticationError
-from groq import Groq
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -582,56 +581,3 @@ class OpenrouterModels:
     @staticmethod
     def deepseek_coder(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
         return OpenrouterModels.call_openrouter_api("deepseek/deepseek-coder", system_prompt, user_prompt, image_data)
-
-class Groq_Models:
-    @staticmethod
-    def groq_llama_3_70b(system_prompt: str, user_prompt: str) -> str:
-        client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-        print_api_request("Sending request to Groq's llama3-70b-8192")
-        print_api_request(f"Sending request to Groq with model: 'llama3-70b-8192' and prompt: '{system_prompt} {user_prompt}'")
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
-        
-        try:
-            chat_completion = client.chat.completions.create(
-                messages=messages,
-                model="llama3-70b-8192",
-            )
-            print_api_response(chat_completion.choices[0].message.content)
-            # Check if there are choices and a message in the first choice, then return the message content
-            if chat_completion.choices and chat_completion.choices[0].message:
-                return chat_completion.choices[0].message.content
-
-            else:
-                return "Error: No valid response received from the API."
-        except Exception as e:
-            print_error(f"An error occurred: {e}")
-            return ""
-        
-    @staticmethod
-    def groq_llama_3_8b(system_prompt: str, user_prompt: str) -> str:
-        client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-        print_api_request("Sending request to Groq with model: 'llama3-8b-8192'")
-        print_api_request(f"Sending request with prompt: '{system_prompt} {user_prompt}'")
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
-        
-        try:
-            chat_completion = client.chat.completions.create(
-                messages=messages,
-                model="llama3-8b-8192",
-            )
-            print_api_response(chat_completion.choices[0].message.content)
-            # Check if there are choices and a message in the first choice, then return the message content
-            if chat_completion.choices and chat_completion.choices[0].message:
-                return chat_completion.choices[0].message.content
-
-            else:
-                return "Error: No valid response received from the API."
-        except Exception as e:
-            print_error(f"An error occurred: {e}")
-            return ""
