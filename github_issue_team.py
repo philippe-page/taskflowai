@@ -1,52 +1,114 @@
 from taskflowai.task import Task
 from taskflowai.agent import Agent
 from taskflowai.tools import GitHubTools, FileTools
-from taskflowai.llm import Openrouter_Models
+from taskflowai.llm import OpenrouterModels
+import time
 
 researcher = Agent(
     role="GitHub researcher",
-    goal="conduct thorough research on GitHub repositories and issues",
-    attributes="analytical, detail-oriented, and able to synthesize information from multiple sources; skilled at identifying trends and patterns in GitHub data",
-    llm=Openrouter_Models.haiku
+    goal="find relevant Python agent repositories with open issues",
+    attributes="analytical, detail-oriented, able to assess repository relevance and popularity",
+    llm=OpenrouterModels.haiku
 )
 
-python_dev = Agent(
-    role="Python developer",
-    goal="assist with Python programming tasks and provide code solutions",
-    attributes="knowledgeable about Python best practices, libraries, and frameworks; detail-oriented and able to explain complex concepts clearly",
-    llm=Openrouter_Models.haiku
+issue_selector = Agent(
+    role="Issue selector",
+    goal="select a suitable issue for fixing, balancing impact and complexity",
+    attributes="prioritization skills, understanding of software development challenges, ability to assess issue complexity and impact",
+    llm=OpenrouterModels.haiku
 )
 
-def research_github_task(agent, user_query):
+code_analyzer = Agent(
+    role="Code analyzer",
+    goal="analyze relevant code for the selected issue and understand its context",
+    attributes="strong understanding of Python, ability to read and comprehend complex codebases, skilled at identifying potential problem areas",
+    llm=OpenrouterModels.haiku
+)
+
+fix_proposer = Agent(
+    role="Fix proposer",
+    goal="propose a specific, syntactically valid fix for the selected issue",
+    attributes="expert Python knowledge, ability to write clean and efficient code, understanding of best practices and project-specific coding styles",
+    llm=OpenrouterModels.haiku
+)
+
+def research_repositories_task(agent, user_query):
     research = Task.create(
         agent=agent,
-        instruction=user_query,
+        instruction=f"Search for {user_query}. Identify 3 relevant repositories, considering popularity (stars, forks) and recent activity. Provide a summary of each repository.",
         tools={
             "Search Repositories": GitHubTools.search_repositories,
-            "List Repo Issues": GitHubTools.list_repo_issues,
-            "Get Issue Comments": GitHubTools.get_issue_comments,
             "Get Repo Details": GitHubTools.get_repo_details
         }
     )
     return research
 
-def propose_solutions_task(research):
-    proposal = Task.create(
-        agent=python_dev,
-        context=f"Research compiled:\n{research}",
-        instruction="Propose fixes to the issues based on the comments and context. Write clear code snippets to fix. ",
-        tools={"Get Repo Details": GitHubTools.get_repo_details}
+def select_issue_task(agent, repo_list):
+    issue_selection = Task.create(
+        agent=agent,
+        context=f"Repository list:\n{repo_list}",
+        instruction="Analyze open issues and select the most suitable issue to fix, considering complexity, potential impact, and alignment with project goals. Provide a detailed explanation of your choice.",
+        tools={
+            "List Repo Issues": GitHubTools.list_repo_issues,
+            "Get Issue Comments": GitHubTools.get_issue_comments
+        }
     )
-    return proposal
+    return issue_selection
+
+def analyze_code_task(agent, selected_issue, repo_info):
+    code_analysis = Task.create(
+        agent=agent,
+        context=f"Selected issue:\n{selected_issue}\nRepository info:\n{repo_info}",
+        instruction="Locate and analyze the code relevant to the selected issue. Provide a detailed analysis of the code structure, potential problem areas, and how they relate to the issue.",
+        tools={
+            "Get Repo Contents": GitHubTools.get_repo_contents,
+            "Get File Content": GitHubTools.get_file_content,
+            "Search Code": GitHubTools.search_code
+        }
+    )
+    return code_analysis
+
+def propose_fix_task(agent, code_analysis, selected_issue, repo_info):
+    fix_proposal = Task.create(
+        agent=agent,
+        context=f"Repository info:\n{repo_info}\nSelected issue:\n{selected_issue}\nCode analysis:\n{code_analysis}",
+        instruction="Based on the code analysis and issue details, propose a specific fix. Include code snippets with necessary changes, ensuring they are syntactically valid and adhere to the project's coding style. Provide a detailed explanation of your proposed changes and their expected impact.",
+        tools={
+            "Get File Content": GitHubTools.get_file_content,
+            "Get Repo Contents": GitHubTools.get_repo_contents
+        }
+    )
+    return fix_proposal
+
 
 def main():
-    user_query = "Can you search for popular agent repositories sorted by help-wanted-issues, and then list a few of the most recent issues and comments?"
-    research = research_github_task(researcher, user_query)
-    proposal = propose_solutions_task(research)
-    save = FileTools.save_code_to_file(proposal, 'library/proposal.md')
-    print(f"Research:\n{research}")
-    print(f"Proposal:\n{proposal}")
-    print(f"Code saved.\n{save}")
+    user_query = "popular Python AI Agent repositories with open help-wanted issues"
+    
+    # Step 1: Research GitHub repositories
+    repo_list = research_repositories_task(researcher, user_query)
+    print(f"Repository List:\n{repo_list}")
+    time.sleep(2)
+
+    # Step 2: Select an issue to fix
+    selected_issue = select_issue_task(issue_selector, repo_list)
+    print(f"Selected Issue:\n{selected_issue}")
+    time.sleep(2)
+    
+    # Step 3: Analyze relevant code
+    code_analysis = analyze_code_task(code_analyzer, selected_issue, repo_list)
+    print(f"Code Analysis:\n{code_analysis}")
+    time.sleep(2)
+    
+    # Step 4: Propose a fix
+    fix_proposal = propose_fix_task(fix_proposer, code_analysis, selected_issue, repo_list)
+    print(f"Fix Proposal:\n{fix_proposal}")
+    time.sleep(2)
+    
+    # Save the fix proposal to a file
+    save = FileTools.save_code_to_file(fix_proposal, 'library/fix_proposal.md')
+    print(f"Fix proposal saved.\n{save}")
+
+    print("Process complete.")
 
 if __name__ == "__main__":
     main()
