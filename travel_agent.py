@@ -1,8 +1,8 @@
 from taskflowai.utils import Utils
 from taskflowai.task import Task
 from taskflowai.tools import WebTools
-from taskflowai.llm import Openrouter_Models
-llm = Openrouter_Models.haiku
+from taskflowai.llm import OpenrouterModels
+llm = OpenrouterModels.haiku
 
 def respond_to_query(llm, user_query):
     task = Task(
@@ -37,7 +37,6 @@ def main():
         history = Utils.truncate_history(history)
         
         print(f"Assistant: {response}")
-        print("\n" + "="*50 + "\n")  # Separator for readability
 
 if __name__ == "__main__":
     main()
