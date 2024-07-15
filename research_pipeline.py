@@ -1,8 +1,8 @@
 from taskflowai.tools import WebTools
 from taskflowai.tasks import ResearchTasks, ChatTasks
-from taskflowai.llm import Openrouter_Models
+from taskflowai.llm import OpenrouterModels
 
-researcher = Openrouter_Models.haiku
+researcher = OpenrouterModels.haiku
 
 def main():
     user_input = input("\nWhat do you want to research?\n")
