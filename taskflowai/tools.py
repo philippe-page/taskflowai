@@ -1,13 +1,26 @@
-import ast, base64, cohere, datetime, io, json, os, random, requests, time, tiktoken, urllib
+import csv
+import base64
+import io
+import json
+import os
+import random
+import time
+import urllib
+import xml.etree.ElementTree as ET
+from datetime import timedelta, datetime
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
-from datetime import datetime, timedelta
+import pandas as pd
+import requests
+import yaml
+from bs4 import BeautifulSoup
+import cohere
 from elevenlabs.client import ElevenLabs
 from elevenlabs import play
-from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
 from PIL import Image
 from tqdm import tqdm
 from dotenv import load_dotenv
+
 
 debug_mode = False
 
@@ -18,7 +31,6 @@ def print_debug(message):
 
 def print_error(message):
     print("\033[91m" + message + "\033[0m")  # Red
-
 
 class WebTools:
     @staticmethod
@@ -916,100 +928,197 @@ class FileTools:
         return encoded_string
 
     @staticmethod
-    def find_file_path(file_structure, file_name, current_path=""):
+    def read_csv(file_path: str) -> List[Dict[str, Any]]:
         """
-        Recursively search for a file in a nested file structure.
+        Read a CSV file and return its contents as a list of dictionaries.
 
         Args:
-            file_structure (dict): A dictionary representing the file structure.
-            file_name (str): The name of the file to find.
-            current_path (str, optional): The current path in the recursion. Defaults to "".
+            file_path (str): The path to the CSV file.
 
         Returns:
-            str or None: The full path of the file if found, None otherwise.
+            List[Dict[str, Any]]: A list of dictionaries, where each dictionary represents a row in the CSV.
+
+        Raises:
+            FileNotFoundError: If the specified file is not found.
+            csv.Error: If there's an error parsing the CSV file.
         """
-        if file_structure["type"] == "file" and file_structure["name"] == os.path.basename(file_name):
-            return os.path.join(current_path, file_structure["name"])
-        elif file_structure["type"] == "directory":
-            for child in file_structure["children"]:
-                found_path = FileTools.find_file_path(child, file_name, os.path.join(current_path, file_structure["name"]))
-                if found_path:
-                    return found_path
-        return None
+        try:
+            with open(file_path, 'r', newline='', encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile)
+                return [row for row in reader]
+        except FileNotFoundError:
+            print(f"Error: CSV file not found at {file_path}")
+            raise
+        except csv.Error as e:
+            print(f"Error parsing CSV file: {e}")
+            raise
 
     @staticmethod
-    def parse_python_functions(file_path):
+    def read_json(file_path: str) -> Union[Dict[str, Any], List[Any]]:
         """
-        Extract the source code of all functions from a Python file.
+        Read a JSON file and return its contents.
 
         Args:
-            file_path (str): The path to the Python file.
+            file_path (str): The path to the JSON file.
 
         Returns:
-            dict: A dictionary where keys are function names and values are their source code.
-                  Returns {'error': 'File not found'} if the file doesn't exist.
+            Union[Dict[str, Any], List[Any]]: The parsed JSON data.
+
+        Raises:
+            FileNotFoundError: If the specified file is not found.
+            json.JSONDecodeError: If there's an error parsing the JSON file.
         """
-        print_debug(f"Attempting to read file: {file_path}")
-
-        if not os.path.exists(file_path):
-            error_message = f"File not found: {file_path}"
-            print_error(error_message)
-            return {'error': 'File not found'}
-
         try:
-            with open(file_path, 'r') as file:
-                file_contents = file.read()
-
-            tree = ast.parse(file_contents)
-            functions = {}
-            for node in ast.walk(tree):
-                if isinstance(node, ast.FunctionDef):
-                    functions[node.name] = ast.unparse(node)
-
-            print_debug(f"Successfully extracted {len(functions)} functions from {file_path}")
-            return functions
-
-        except Exception as e:
-            error_message = f"Error processing file {file_path}: {str(e)}"
-            print_error(error_message)
-            return {'error': error_message}
+            with open(file_path, 'r', encoding='utf-8') as jsonfile:
+                return json.load(jsonfile)
+        except FileNotFoundError:
+            print(f"Error: JSON file not found at {file_path}")
+            raise
+        except json.JSONDecodeError as e:
+            print(f"Error parsing JSON file: {e}")
+            raise
 
     @staticmethod
-    def parse_python_classes(file_path):
+    def read_xml(file_path: str) -> ET.Element:
         """
-        Extract the source code of all classes from a Python file.
+        Read an XML file and return its contents as an ElementTree.
 
         Args:
-            file_path (str): The path to the Python file.
+            file_path (str): The path to the XML file.
 
         Returns:
-            dict: A dictionary where keys are class names and values are their source code.
-                  Returns {'error': 'File not found'} if the file doesn't exist.
+            ET.Element: The root element of the parsed XML.
+
+        Raises:
+            FileNotFoundError: If the specified file is not found.
+            ET.ParseError: If there's an error parsing the XML file.
         """
-        print_debug(f"Attempting to read file: {file_path}")
-
-        if not os.path.exists(file_path):
-            error_message = f"File not found: {file_path}"
-            print_error(error_message)
-            return {'error': 'File not found'}
-
         try:
-            with open(file_path, 'r') as file:
-                file_contents = file.read()
+            tree = ET.parse(file_path)
+            return tree.getroot()
+        except FileNotFoundError:
+            print(f"Error: XML file not found at {file_path}")
+            raise
+        except ET.ParseError as e:
+            print(f"Error parsing XML file: {e}")
+            raise
 
-            tree = ast.parse(file_contents)
-            classes = {}
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ClassDef):
-                    classes[node.name] = ast.unparse(node)
+    @staticmethod
+    def read_yaml(file_path: str) -> Union[Dict[str, Any], List[Any]]:
+        """
+        Read a YAML file and return its contents.
 
-            print_debug(f"Successfully extracted {len(classes)} classes from {file_path}")
-            return classes
+        Args:
+            file_path (str): The path to the YAML file.
 
-        except Exception as e:
-            error_message = f"Error processing file {file_path}: {str(e)}"
-            print_error(error_message)
-            return {'error': error_message}
+        Returns:
+            Union[Dict[str, Any], List[Any]]: The parsed YAML data.
+
+        Raises:
+            FileNotFoundError: If the specified file is not found.
+            yaml.YAMLError: If there's an error parsing the YAML file.
+        """
+        try:
+            with open(file_path, 'r', encoding='utf-8') as yamlfile:
+                return yaml.safe_load(yamlfile)
+        except FileNotFoundError:
+            print(f"Error: YAML file not found at {file_path}")
+            raise
+        except yaml.YAMLError as e:
+            print(f"Error parsing YAML file: {e}")
+            raise
+
+    @staticmethod
+    def search_csv(file_path: str, search_column: str, search_value: Any) -> List[Dict[str, Any]]:
+        """
+        Search for a specific value in a CSV file and return matching rows.
+
+        Args:
+            file_path (str): The path to the CSV file.
+            search_column (str): The name of the column to search in.
+            search_value (Any): The value to search for.
+
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries representing matching rows.
+
+        Raises:
+            FileNotFoundError: If the specified file is not found.
+            KeyError: If the specified search column doesn't exist in the CSV.
+        """
+        try:
+            df = pd.read_csv(file_path)
+            if search_column not in df.columns:
+                raise KeyError(f"Column '{search_column}' not found in the CSV file.")
+            return df[df[search_column] == search_value].to_dict('records')
+        except FileNotFoundError:
+            print(f"Error: CSV file not found at {file_path}")
+            raise
+        except KeyError as e:
+            print(f"Error: {e}")
+            raise
+
+    @staticmethod
+    def search_json(data: Union[Dict[str, Any], List[Any]], search_key: str, search_value: Any) -> List[Any]:
+        """
+        Search for a specific key-value pair in a JSON structure and return matching items.
+
+        Args:
+            data (Union[Dict[str, Any], List[Any]]): The JSON data to search.
+            search_key (str): The key to search for.
+            search_value (Any): The value to match.
+
+        Returns:
+            List[Any]: A list of items that match the search criteria.
+        """
+        results = []
+
+        def search_recursive(item):
+            if isinstance(item, dict):
+                if search_key in item and item[search_key] == search_value:
+                    results.append(item)
+                for value in item.values():
+                    search_recursive(value)
+            elif isinstance(item, list):
+                for element in item:
+                    search_recursive(element)
+
+        search_recursive(data)
+        return results
+
+    @staticmethod
+    def search_xml(root: ET.Element, tag: str, attribute: str = None, value: str = None) -> List[ET.Element]:
+        """
+        Search for specific elements in an XML structure.
+
+        Args:
+            root (ET.Element): The root element of the XML to search.
+            tag (str): The tag name to search for.
+            attribute (str, optional): The attribute name to match. Defaults to None.
+            value (str, optional): The attribute value to match. Defaults to None.
+
+        Returns:
+            List[ET.Element]: A list of matching XML elements.
+        """
+        if attribute and value:
+            return root.findall(f".//*{tag}[@{attribute}='{value}']")
+        else:
+            return root.findall(f".//*{tag}")
+
+    @staticmethod
+    def search_yaml(data: Union[Dict[str, Any], List[Any]], search_key: str, search_value: Any) -> List[Any]:
+        """
+        Search for a specific key-value pair in a YAML structure and return matching items.
+
+        Args:
+            data (Union[Dict[str, Any], List[Any]]): The YAML data to search.
+            search_key (str): The key to search for.
+            search_value (Any): The value to match.
+
+        Returns:
+            List[Any]: A list of items that match the search criteria.
+        """
+        # YAML is parsed into Python data structures, so we can reuse the JSON search method
+        return FileTools.search_json(data, search_key, search_value)
 
 
 class EmbeddingsTools:
