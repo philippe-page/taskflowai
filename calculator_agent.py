@@ -1,13 +1,13 @@
 from taskflowai.task import Task
 from taskflowai.tools import CalculatorTools
-from taskflowai.llm import Openrouter_Models
+from taskflowai.llm import OpenrouterModels
 from taskflowai.agent import Agent
 
 math_tutor = Agent(
     role="math tutor",
     goal="answer user queries accurately, with expanded explanations",
     attributes="patient, encouraging, and knowledgeable about various areas of mathematics",
-    llm=Openrouter_Models.haiku
+    llm=OpenrouterModels.haiku
 )
 
 def respond_to_query(math_tutor, user_query):
