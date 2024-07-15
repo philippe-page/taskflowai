@@ -1727,6 +1727,129 @@ class GitHubTools:
         }
 
 
+    @staticmethod
+    def get_repo_contents(owner: str, repo: str, path: str = "") -> List[Dict[str, Any]]:
+        """
+        Get contents of a repository directory or file.
+
+        Args:
+            owner (str): The owner (user or organization) of the repository.
+            repo (str): The name of the repository.
+            path (str, optional): The directory or file path. Defaults to root directory.
+
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries containing information about the contents.
+
+        Raises:
+            requests.exceptions.HTTPError: If the API request fails.
+        """
+        base_url = "https://api.github.com"
+        headers = {"Accept": "application/vnd.github+json"}
+        url = f"{base_url}/repos/{owner}/{repo}/contents/{path}"
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+
+    @staticmethod
+    def get_file_content(owner: str, repo: str, path: str) -> str:
+        """
+        Get the content of a specific file in the repository.
+
+        Args:
+            owner (str): The owner (user or organization) of the repository.
+            repo (str): The name of the repository.
+            path (str): The file path within the repository.
+
+        Returns:
+            str: The content of the file.
+
+        Raises:
+            requests.exceptions.HTTPError: If the API request fails.
+        """
+        base_url = "https://api.github.com"
+        headers = {"Accept": "application/vnd.github+json"}
+        url = f"{base_url}/repos/{owner}/{repo}/contents/{path}"
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        content = response.json()["content"]
+        return base64.b64decode(content).decode('utf-8')
+
+    @staticmethod
+    def get_directory_structure(owner: str, repo: str, path: str = "") -> Dict[str, Any]:
+        """
+        Get the directory structure of a repository.
+
+        Args:
+            owner (str): The owner (user or organization) of the repository.
+            repo (str): The name of the repository.
+            path (str, optional): The directory path. Defaults to root directory.
+
+        Returns:
+            Dict[str, Any]: A nested dictionary representing the directory structure.
+
+        Raises:
+            requests.exceptions.HTTPError: If the API request fails.
+        """
+        contents = GitHubTools.get_repo_contents(owner, repo, path)
+        structure = {}
+        for item in contents:
+            if item['type'] == 'dir':
+                structure[item['name']] = GitHubTools.get_directory_structure(owner, repo, item['path'])
+            else:
+                structure[item['name']] = item['type']
+        return structure
+
+    @staticmethod
+    def search_code(query: str, owner: str, repo: str, max_results: int = 10) -> Dict[str, Any]:
+        """
+        Search for code within a specific repository.
+
+        Args:
+            query (str): The search query.
+            owner (str): The owner (user or organization) of the repository.
+            repo (str): The name of the repository.
+            max_results (int, optional): Maximum number of results to return. Defaults to 10.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing search results and metadata.
+
+        Raises:
+            requests.exceptions.HTTPError: If the API request fails.
+        """
+        base_url = "https://api.github.com"
+        headers = {"Accept": "application/vnd.github+json"}
+        url = f"{base_url}/search/code"
+        params = {
+            "q": f"{query} repo:{owner}/{repo}",
+            "per_page": min(max_results, 100)
+        }
+
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        data = response.json()
+
+        def simplify_code_result(item: Dict[str, Any]) -> Dict[str, Any]:
+            return {
+                "name": item["name"],
+                "path": item["path"],
+                "sha": item["sha"],
+                "url": item["html_url"],
+                "repository": {
+                    "name": item["repository"]["name"],
+                    "full_name": item["repository"]["full_name"],
+                    "owner": item["repository"]["owner"]["login"]
+                }
+            }
+
+        simplified_results = [simplify_code_result(item) for item in data['items'][:max_results]]
+
+        return {
+            "total_count": data['total_count'],
+            "incomplete_results": data['incomplete_results'],
+            "items": simplified_results
+        }
+
+
 class AmadeusTools:
     @staticmethod
     def _get_access_token():

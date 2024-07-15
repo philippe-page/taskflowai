@@ -45,7 +45,7 @@ def print_error(message):
     print_color(message, 'red')
 
 
-class Openai_Models:
+class OpenaiModels:
     @staticmethod
     def send_openai_request(system_prompt: str, user_prompt: str, model: str, image_data: Union[List[str], str, None] = None) -> str:
         print_debug(f"Entering send_openai_request function")
@@ -162,21 +162,21 @@ class Openai_Models:
 
     @staticmethod
     def gpt_4_turbo(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openai_Models.send_openai_request(system_prompt, user_prompt, "gpt-4-turbo", image_data)
+        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4-turbo", image_data)
     
     @staticmethod
     def gpt_3_5_turbo(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openai_Models.send_openai_request(system_prompt, user_prompt, "gpt-3.5-turbo", image_data)
+        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-3.5-turbo", image_data)
 
     @staticmethod
     def gpt_4o(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openai_Models.send_openai_request(system_prompt, user_prompt, "gpt-4o", image_data)
+        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4o", image_data)
 
     @staticmethod
     def gpt_4(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openai_Models.send_openai_request(system_prompt, user_prompt, "gpt-4", image_data)
+        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4", image_data)
     
-class Anthropic_Models:
+class AnthropicModels:
     @staticmethod
     def call_anthropic(system_prompt: str, user_prompt: str, model: str, image_data: Union[List[str], str, None] = None) -> str:
 
@@ -306,21 +306,21 @@ class Anthropic_Models:
     
     @staticmethod
     def opus(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Anthropic_Models.call_anthropic(system_prompt, user_prompt, "claude-3-opus-20240229", image_data)
+        return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-opus-20240229", image_data)
 
     @staticmethod
     def sonnet(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Anthropic_Models.call_anthropic(system_prompt, user_prompt, "claude-3-sonnet-20240229", image_data)
+        return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-sonnet-20240229", image_data)
 
     @staticmethod
     def haiku(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Anthropic_Models.call_anthropic(system_prompt, user_prompt, "claude-3-haiku-20240307", image_data)
+        return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-haiku-20240307", image_data)
     
     @staticmethod
     def sonnet_3_5(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Anthropic_Models.call_anthropic(system_prompt, user_prompt, "claude-3-5-sonnet-20240620", image_data)
+        return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-5-sonnet-20240620", image_data)
 
-class Openrouter_Models:
+class OpenrouterModels:
     @staticmethod
     def call_openrouter_api(model_key: str, system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
         print_debug(f"Entering call_openrouter_api function")
@@ -465,123 +465,123 @@ class Openrouter_Models:
 
     @staticmethod
     def haiku(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("anthropic/claude-3-haiku", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("anthropic/claude-3-haiku", system_prompt, user_prompt, image_data)
 
     @staticmethod
     def sonnet(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("anthropic/claude-3-sonnet", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("anthropic/claude-3-sonnet", system_prompt, user_prompt, image_data)
     
     @staticmethod
     def sonnet_3_5(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("anthropic/claude-3.5-sonnet", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("anthropic/claude-3.5-sonnet", system_prompt, user_prompt, image_data)
 
     @staticmethod
     def opus(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("anthropic/claude-3-opus", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("anthropic/claude-3-opus", system_prompt, user_prompt, image_data)
 
     @staticmethod
     def gpt_3_5_turbo(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("openai/gpt-3.5-turbo", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("openai/gpt-3.5-turbo", system_prompt, user_prompt, image_data)
 
     @staticmethod
     def gpt_4_turbo(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("openai/gpt-4-turbo", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("openai/gpt-4-turbo", system_prompt, user_prompt, image_data)
 
     @staticmethod
     def gpt_4(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("openai/gpt-4", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("openai/gpt-4", system_prompt, user_prompt, image_data)
 
     @staticmethod
     def gpt_4o(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("openai/gpt-4o", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("openai/gpt-4o", system_prompt, user_prompt, image_data)
     
     @staticmethod
     def gemini_flash_1_5(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("google/gemini-flash-1.5", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("google/gemini-flash-1.5", system_prompt, user_prompt, image_data)
 
     @staticmethod
     def llama_3_70b_sonar_32k(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("perplexity/llama-3-sonar-large-32k-chat", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("perplexity/llama-3-sonar-large-32k-chat", system_prompt, user_prompt, image_data)
     
     @staticmethod
     def command_r(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("cohere/command-r-plus", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("cohere/command-r-plus", system_prompt, user_prompt, image_data)
 
     @staticmethod
     def nous_hermes_2_mistral_7b_dpo(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("nousresearch/nous-hermes-2-mistral-7b-dpo", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("nousresearch/nous-hermes-2-mistral-7b-dpo", system_prompt, user_prompt, image_data)
 
     @staticmethod
     def nous_hermes_2_mixtral_8x7b_dpo(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("nousresearch/nous-hermes-2-mixtral-8x7b-dpo", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("nousresearch/nous-hermes-2-mixtral-8x7b-dpo", system_prompt, user_prompt, image_data)
 
     @staticmethod
     def nous_hermes_yi_34b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("nousresearch/nous-hermes-yi-34b", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("nousresearch/nous-hermes-yi-34b", system_prompt, user_prompt, image_data)
     
     @staticmethod
     def qwen_2_72b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("qwen/qwen-2-72b-instruct", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("qwen/qwen-2-72b-instruct", system_prompt, user_prompt, image_data)
 
     @staticmethod
     def mistral_7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("mistralai/mistral-7b-instruct", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("mistralai/mistral-7b-instruct", system_prompt, user_prompt, image_data)
 
     @staticmethod
     def mistral_7b_nitro(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("mistralai/mistral-7b-instruct:nitro", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("mistralai/mistral-7b-instruct:nitro", system_prompt, user_prompt, image_data)
     
     @staticmethod
     def mixtral_8x7b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("mistralai/mixtral-8x7b-instruct", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("mistralai/mixtral-8x7b-instruct", system_prompt, user_prompt, image_data)
 
     @staticmethod
     def mixtral_8x7b_instruct_nitro(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("mistralai/mixtral-8x7b-instruct:nitro", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("mistralai/mixtral-8x7b-instruct:nitro", system_prompt, user_prompt, image_data)
     
     @staticmethod
     def mixtral_8x22b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("mistralai/mixtral-8x22b-instruct", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("mistralai/mixtral-8x22b-instruct", system_prompt, user_prompt, image_data)
 
     @staticmethod
     def wizardlm_2_8x22b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("microsoft/wizardlm-2-8x22b", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("microsoft/wizardlm-2-8x22b", system_prompt, user_prompt, image_data)
 
     @staticmethod
     def neural_chat_7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("intel/neural-chat-7b", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("intel/neural-chat-7b", system_prompt, user_prompt, image_data)
 
     @staticmethod
     def gemma_7b_it(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("google/gemma-7b-it", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("google/gemma-7b-it", system_prompt, user_prompt, image_data)
 
     @staticmethod
     def gemini_pro(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("google/gemini-pro", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("google/gemini-pro", system_prompt, user_prompt, image_data)
 
     @staticmethod
     def llama_3_8b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("meta-llama/llama-3-8b-instruct", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("meta-llama/llama-3-8b-instruct", system_prompt, user_prompt, image_data)
     
     @staticmethod
     def llama_3_70b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("meta-llama/llama-3-70b-instruct", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("meta-llama/llama-3-70b-instruct", system_prompt, user_prompt, image_data)
         
     @staticmethod
     def llama_3_70b_instruct_nitro(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("meta-llama/llama-3-70b-instruct:nitro", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("meta-llama/llama-3-70b-instruct:nitro", system_prompt, user_prompt, image_data)
     
     @staticmethod
     def llama_3_8b_instruct_nitro(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("meta-llama/llama-3-8b-instruct:nitro", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("meta-llama/llama-3-8b-instruct:nitro", system_prompt, user_prompt, image_data)
     
     @staticmethod
     def dbrx_132b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("databricks/dbrx-instruct", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("databricks/dbrx-instruct", system_prompt, user_prompt, image_data)
 
     @staticmethod
     def deepseek_coder(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return Openrouter_Models.call_openrouter_api("deepseek/deepseek-coder", system_prompt, user_prompt, image_data)
+        return OpenrouterModels.call_openrouter_api("deepseek/deepseek-coder", system_prompt, user_prompt, image_data)
 
 class Groq_Models:
     @staticmethod
