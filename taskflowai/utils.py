@@ -1,4 +1,5 @@
-import tiktoken, datetime
+import tiktoken
+from datetime import datetime
 
 class Utils:
     @staticmethod
