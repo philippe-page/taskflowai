@@ -1,9 +1,9 @@
 from taskflowai.tools import WebTools
 from taskflowai.tasks import ResearchTasks, ChatTasks
-from taskflowai.llm import Openrouter_Models
+from taskflowai.llm import OpenrouterModels
 
-researcher = Openrouter_Models.mixtral_8x7b_instruct_nitro
-translator = Openrouter_Models.qwen_2_72b
+researcher = OpenrouterModels.mixtral_8x7b_instruct_nitro
+translator = OpenrouterModels.qwen_2_72b
 
 def main():
     user_input = input("\nWhat news topic do you want to search for?\n")
