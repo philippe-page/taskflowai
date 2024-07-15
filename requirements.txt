@@ -1,7 +1,6 @@
 pydantic
 anthropic
 openai
-groq
 cohere
 elevenlabs
 beautifulsoup4
