@@ -350,10 +350,10 @@ Coordination Mechanism: Determine how agents will work together and in what sequ
 Let's examine a multi-agent system for researching GitHub issues and proposing solutions:
 
 ```python
-from utils.task import Task
-from utils.agent import Agent
-from utils.tools import GitHubTools, FileTools
-from utils.llm import Openrouter_Models
+from taskflowai.task import Task
+from taskflowai.agent import Agent
+from taskflowai.tools import GitHubTools, FileTools
+from taskflowai.llm import Openrouter_Models
 
 researcher = Agent(
     role="GitHub researcher",
