@@ -15,6 +15,34 @@ class Task(BaseModel):
 
     @classmethod
     def create(cls, agent: Optional[Any] = None, **kwargs):
+        """
+Create and execute a Task instance.
+
+Main usage:
+- agent: An object with role, goal, attributes, and llm properties
+- context: Background information or setting for the task
+- instruction: Specific directions for completing the task
+- tools: Optional dictionary of {tool_name: tool_function}
+
+Alternative usage (direct instantiation):
+- role: The role or type of agent performing the task
+- goal: The objective or purpose of the task
+- attributes: Additional characteristics of the agent (optional)
+- llm: The language model function to be called
+
+LLMs can be set per-agent or per-task.
+
+Returns:
+The result of executing the created Task
+
+Example:
+    Task.create(
+        agent=math_tutor,
+        context="User input: {user_input}",
+        instruction="Explain the answer in detail",
+        tools={"Calculator": CalculatorTools.basic_math}
+    )
+        """
         if agent:
             task_data = {
                 "role": agent.role,
@@ -32,7 +60,7 @@ class Task(BaseModel):
     def system_prompt(self) -> str:
         attributes = f" {self.attributes}" if self.attributes else ""
         article = "an" if self.role.lower()[0] in "aeiou" else "a"
-        return f"You are {article} {self.role}.{attributes} Your goal is to {self.goal}."
+        return f"You are {article} {self.role}. {attributes} Your goal is to {self.goal}."
 
     def user_prompt(self) -> str:
         prompt = ""
@@ -82,7 +110,7 @@ Now provide a valid JSON object indicating whether the necessary information to 
             llm=self.llm,
             tools=self.tools
         )
-        max_iterations = 3
+        max_iterations = 5
         tool_usage_history = ""
         for _ in range(max_iterations):
             response = tool_loop_task.llm(
