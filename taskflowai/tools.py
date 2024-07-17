@@ -21,7 +21,6 @@ from PIL import Image
 from tqdm import tqdm
 from dotenv import load_dotenv
 
-
 debug_mode = False
 
 def print_debug(message):
@@ -2336,39 +2335,65 @@ class CalculatorTools:
     @staticmethod
     def basic_math(operation: str, args: list) -> float:
         """
-        Perform basic math operations on multiple numbers.
+        Perform basic and advanced math operations on multiple numbers.
 
         Args:
-            operation (str): One of 'add', 'subtract', 'multiply', or 'divide'.
+            operation (str): One of 'add', 'subtract', 'multiply', 'divide', 'exponent', 'root', 'modulo', or 'factorial'.
             args (list): List of numbers to perform the operation on.
 
         Returns:
             float: Result of the operation.
 
         Raises:
-            ValueError: If an invalid operation is provided, if dividing by zero, or if fewer than two numbers are provided.
+            ValueError: If an invalid operation is provided, if dividing by zero, if fewer than required numbers are provided, or for invalid inputs.
         """
-        if len(args) < 2:
-            raise ValueError("At least two numbers are required for the operation.")
+        if len(args) < 1:
+            raise ValueError("At least one number is required for the operation.")
 
         result = args[0]
 
-        if operation == 'add':
-            for num in args[1:]:
-                result += num
-        elif operation == 'subtract':
-            for num in args[1:]:
-                result -= num
-        elif operation == 'multiply':
-            for num in args[1:]:
-                result *= num
-        elif operation == 'divide':
-            for num in args[1:]:
-                if num == 0:
-                    raise ValueError("Cannot divide by zero")
-                result /= num
+        if operation in ['add', 'subtract', 'multiply', 'divide']:
+            if len(args) < 2:
+                raise ValueError("At least two numbers are required for this operation.")
+
+            if operation == 'add':
+                for num in args[1:]:
+                    result += num
+            elif operation == 'subtract':
+                for num in args[1:]:
+                    result -= num
+            elif operation == 'multiply':
+                for num in args[1:]:
+                    result *= num
+            elif operation == 'divide':
+                for num in args[1:]:
+                    if num == 0:
+                        raise ValueError("Cannot divide by zero")
+                    result /= num
+        elif operation == 'exponent':
+            if len(args) != 2:
+                raise ValueError("Exponent operation requires exactly two numbers.")
+            result = args[0] ** args[1]
+        elif operation == 'root':
+            if len(args) != 2:
+                raise ValueError("Root operation requires exactly two numbers.")
+            if args[1] == 0:
+                raise ValueError("Cannot calculate 0th root")
+            result = args[0] ** (1 / args[1])
+        elif operation == 'modulo':
+            if len(args) != 2:
+                raise ValueError("Modulo operation requires exactly two numbers.")
+            if args[1] == 0:
+                raise ValueError("Cannot perform modulo with zero")
+            result = args[0] % args[1]
+        elif operation == 'factorial':
+            if len(args) != 1 or args[0] < 0 or not isinstance(args[0], int):
+                raise ValueError("Factorial operation requires exactly one non-negative integer.")
+            result = 1
+            for i in range(1, args[0] + 1):
+                result *= i
         else:
-            raise ValueError("Invalid operation. Choose 'add', 'subtract', 'multiply', or 'divide'.")
+            raise ValueError("Invalid operation. Choose 'add', 'subtract', 'multiply', 'divide', 'exponent', 'root', 'modulo', or 'factorial'.")
 
         return result
 
