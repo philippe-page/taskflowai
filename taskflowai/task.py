@@ -95,7 +95,7 @@ Example:
         tool_loop_task = Task(
             role=f"{self.role}. You are currently determining if you need to use tools",
             goal=f"{self.goal}. You are currently assessing the need for additional tool usage and executing tools if necessary",
-            attributes=f"{attributes_section}You only respond in JSON, and you do not comment before or after the JSON returned. You do not use tools when you have sufficient information. You understand tools cost money and time, and you are emotionally fearful of overusing tools in repetition, so you will report 'done' when sufficient information is present. You avoid at all costs repeating tool calls.",
+            attributes=f"{attributes_section}You only respond in JSON, and you do not comment before or after the JSON returned. You do not use tools when you have sufficient information. You understand tools cost money and time, and you are emotionally fearful of overusing tools in repetition, so you will report 'done' when sufficient information is present. You avoid at all costs repeating tool calls with the exact same parameters.",
             instruction=f"""
 Determine if you need to use any tools or if you have sufficient information to complete the given task or query: {self.instruction}. Respond with a JSON object in one of these formats:
 
@@ -123,8 +123,8 @@ The original task instruction is:
 The current timestamp is:
 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 
-Now provide a valid JSON object indicating whether the necessary information to fulfill the task is present without any additional text before or after. Only use tools when absolutely necessary. If you have the information required to respond to the query in this context, then you will return 'done' JSON. If you need more info to complete the task, then you will return the JSON object with the tool calls. **Consider whether you need to make tool calls successively or all at once. If the result of one tool call is required as input for another tool, make your calls one at a time. If multiple tool calls can be made independently, you may request them all at once.** Do not comment before or after the JSON; return *only a valid JSON* in any case.
-            """,
+Now provide a valid JSON object indicating whether the necessary information to fulfill the task is present without any additional text before or after. Only use tools when absolutely necessary. If you have the information required to respond to the query in this context, then you will return 'done' JSON. If you need more info to complete the task, then you will return the JSON object with the tool calls. **Consider whether you need to make tool calls successively or all at once. If the result of one tool call is required as input for another tool, make your calls one at a time. If multiple tool calls can be made independently, you may request them all at once. Successive tool calls can also be made one after the other, allowing you to wait for the result of one tool call before making another if needed.** Do not comment before or after the JSON; return *only a valid JSON* in any case.
+""",
             context=(f"{self.context}\n\n{tool_descriptions}\n{tool_usage_history}" if self.context else f"{tool_descriptions}\n{tool_usage_history}").strip(),
             llm=self.llm,
             tools=self.tools
@@ -150,7 +150,7 @@ Now provide a valid JSON object indicating whether the necessary information to 
                     if 'tool_calls' in tool_requests:
                         tool_calls = tool_requests['tool_calls']
                         for tool_request in tool_calls:
-                            tool_name = tool_request["tool"]
+                            tool_name = tool_request["tool"].lower() # Convert to lowercase
                             tool_params = tool_request.get("params", {})
 
                             print(f"{COLORS['LABEL']}Tool Use: {COLORS['TOOL_NAME']}{tool_name}{COLORS['RESET']}")
@@ -160,9 +160,12 @@ Now provide a valid JSON object indicating whether the necessary information to 
                             print()  # Add a newline for better separation
                             print(COLORS['RESET'], end='')
 
-                            if tool_name in self.tools:
+                            # Create a case-insensitive dictionary of tools
+                            tools_lower = {name.lower(): func for name, func in self.tools.items()}
+                            
+                            if tool_name in tools_lower:
                                 try:
-                                    result = self.tools[tool_name](**tool_params)
+                                    result = tools_lower[tool_name](**tool_params)
                                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                     tool_result = f"\n\nAt [{timestamp}] you used the tool: '{tool_name}' with the parameters: {json.dumps(tool_params, indent=2)}\nThe following is the result of the tool's use:\n{result}"
                                     tool_usage_history += tool_result
