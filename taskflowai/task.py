@@ -214,7 +214,7 @@ Now provide a valid JSON object indicating whether the necessary information to 
             image_data=self.image_data
         )
         
-        return updated_task.llm(updated_task.system_prompt(), updated_task.instruction, image_data=updated_task.image_data)
+        return updated_task.llm(updated_task.system_prompt(), updated_task.user_prompt(), image_data=updated_task.image_data)
 
     def execute(self) -> str:
         if self.tools:
