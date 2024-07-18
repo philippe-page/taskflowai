@@ -7,8 +7,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Display mode enables printing of API requests and responses
-display_requests = True 
-display_responses = True
+display_requests = False 
+display_responses = False
 
 # Debug mode enables comprehensive logging for detailed diagnostics
 debug_mode = False
@@ -175,11 +175,15 @@ class OpenaiModels:
     def gpt_4(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
         return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4", image_data)
     
+    @staticmethod
+    def custom_model(model: str, system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OpenaiModels.send_openai_request(system_prompt, user_prompt, model, image_data)
+
+
+
 class AnthropicModels:
     @staticmethod
     def call_anthropic(system_prompt: str, user_prompt: str, model: str, image_data: Union[List[str], str, None] = None) -> str:
-
-
         max_retries = 6
         base_delay = 5
 
@@ -244,6 +248,7 @@ class AnthropicModels:
                     model=model,
                     system=system_prompt,
                     max_tokens=4000,
+                    temperature=0.7, 
                     messages=messages
                 )
                 print_debug(f"API response received")
@@ -318,6 +323,10 @@ class AnthropicModels:
     @staticmethod
     def sonnet_3_5(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
         return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-5-sonnet-20240620", image_data)
+
+    @staticmethod
+    def custom_model(model: str, system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return AnthropicModels.call_anthropic(system_prompt, user_prompt, model, image_data)
 
 class OpenrouterModels:
     @staticmethod
@@ -581,3 +590,7 @@ class OpenrouterModels:
     @staticmethod
     def deepseek_coder(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
         return OpenrouterModels.call_openrouter_api("deepseek/deepseek-coder", system_prompt, user_prompt, image_data)
+
+    @staticmethod
+    def custom_llm(custom_model: str, system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OpenrouterModels.call_openrouter_api(custom_model, system_prompt, user_prompt, image_data)
