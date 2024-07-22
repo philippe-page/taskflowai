@@ -6,38 +6,32 @@ from taskflowai.utils import Utils
 
 math_tutor = Agent(
     role="math tutor",
-    goal="answer user queries accurately, with expanded explanations",
-    attributes="patient, encouraging, and knowledgeable about various areas of mathematics. you use a calculator to help your students when necessary",
-    llm=OpenrouterModels.haiku
+    goal="use calculator tool to answer user queries accurately, with expanded explanations",
+    attributes="determined to use a calculator to answer questions with 100 percent accuracy. You do not provide a final answer until you have calculated and verified all of the mathematics involved.",
+    llm=OpenrouterModels.gpt_4o
 )
 
 def respond_to_query(math_tutor, user_query, history):
     response = Task.create(
         agent=math_tutor,
-        instruction=f"Answer the user query in a conversational way. User query to respond to: '{user_query}'",
+        instruction=f"Use your calculator thoroughly to answer the question: '{user_query}'.",
         context=f"Conversation History:\n{history}\n\nUser query: '{user_query}'",
-        tools={
-            "Calculator": CalculatorTools.basic_math,
-            "Get Current Time": CalculatorTools.get_current_time
-        }
+        tools={CalculatorTools.basic_math}
     )
     return response
 
-
 def main():
     history = []
+
     while True:
         user_query = input("\nEnter a question (or 'exit' to quit):\n")
         if user_query.lower() == 'exit':
             break
 
-        formatted_usermessage = Utils.format_message("User", user_query)
-        Utils.update_history(history, formatted_usermessage)
+        history = Utils.update_conversation_history(history, "User", user_query)
         response = respond_to_query(math_tutor, user_query, history)
-        formatted_response = Utils.format_message("Assistant", response)
-        Utils.update_history(history, formatted_response)
+        history = Utils.update_conversation_history(history, "Assistant", response)
         print(f"Assistant: {response}")
-
 
 if __name__ == "__main__":
     main()
