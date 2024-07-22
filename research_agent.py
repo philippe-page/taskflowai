@@ -7,16 +7,14 @@ agent = Agent(
     role="research assistant",
     goal="answer user queries",
     attributes="you're thorough in your web research and you write extensive reports on your research",
-    llm=OpenrouterModels.haiku
+    llm=OpenrouterModels.haiku,
+    tools={WebTools.serper_search}
 )
 
 def create_research_task(user_query):
     return Task.create(
         agent=agent,
-        instruction=f"Answer the following query: {user_query}",
-        tools={
-            "web_search": WebTools.serper_search
-        }
+        instruction=f"Answer the following query: {user_query}"
     )
 
 def main():
