@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Callable, Optional, Union, Dict, List, Any
+from typing import Callable, Optional, Union, Dict, List, Any, Set
 from datetime import datetime
 import json
 
@@ -22,14 +22,14 @@ class Task(BaseModel):
     llm: Callable = Field(..., description="The language model function to be called")
     image_data: Optional[Union[List[str], str]] = Field(None, description="Optional base64-encoded image data")
     agent: Optional[Any] = Field(None, description="The agent associated with this task")
-    tools: Optional[Dict[str, Callable]] = Field(default=None, description="Optional dictionary of tool functions")
+    tools: Optional[Set[Callable]] = Field(default=None, description="Optional set of tool functions")
 
 
     @classmethod
     def create(cls, agent: Optional[Any] = None, role: Optional[str] = None, 
                 goal: Optional[str] = None, attributes: Optional[str] = None, 
                 context: Optional[str] = None, instruction: Optional[str] = None, 
-                llm: Optional[Callable] = None, tools: Optional[Dict[str, Callable]] = None, 
+                llm: Optional[Callable] = None, tools: Optional[Set[Callable]] = None, 
                 image_data: Optional[Union[List[str], str]] = None):
         """
 Create and execute a Task instance. 
@@ -46,7 +46,7 @@ Args:
         llm (Callable): The language model function to be called (unnecessary if agent is provided)
     context (Optional[str]): Background information, additional context, or setting for the task
     instruction (str): Specific direction for completing the task
-    tools (Optional[Dict[str, Callable]]): Dictionary of tool functions (e.g. {"web search": WebTools.search_tool})
+    tools (Optional[Set[Callable]]): Set of tool functions (e.g. {WebTools.scrape_url, WebTools.search_tool})
     image_data (Optional[Union[List[str], str]]): Optional base64-encoded image data for image-based tasks
 
 Returns:
@@ -97,7 +97,7 @@ Raises:
         return prompt
 
     def _execute_tool_loop(self) -> str:
-        tool_descriptions = "You have access to the following tools:\n" + "\n".join([f"- {name}: {func.__doc__}" for name, func in self.tools.items()]).rstrip()
+        tool_descriptions = "You have access to the following tools:\n" + "\n".join([f"- {func.__name__}: {func.__doc__}" for func in self.tools]).rstrip()
         tool_usage_history = ""
         attributes_section = f"You are {self.attributes}." if self.attributes else ""
         tool_loop_task = Task(
@@ -168,12 +168,12 @@ Now provide a valid JSON object indicating whether the necessary information to 
                             print()  # Add a newline for better separation
                             print(COLORS['RESET'], end='')
 
-                            # Create a case-insensitive dictionary of tools
-                            tools_lower = {name.lower(): func for name, func in self.tools.items()}
+                            # Create a dictionary of tools with function names as keys
+                            tools_dict = {func.__name__.lower(): func for func in self.tools}
                             
-                            if tool_name in tools_lower:
+                            if tool_name in tools_dict:
                                 try:
-                                    result = tools_lower[tool_name](**tool_params)
+                                    result = tools_dict[tool_name](**tool_params)
                                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                     tool_result = f"\n\nAt [{timestamp}] you used the tool: '{tool_name}' with the parameters: {json.dumps(tool_params, indent=2)}\nThe following is the result of the tool's use:\n{result}"
                                     tool_usage_history += tool_result
