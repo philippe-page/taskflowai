@@ -8,15 +8,15 @@ math_tutor = Agent(
     role="math tutor",
     goal="use calculator tool to answer user queries accurately, with expanded explanations",
     attributes="determined to use a calculator to answer questions with 100 percent accuracy. You do not provide a final answer until you have calculated and verified all of the mathematics involved.",
-    llm=OpenrouterModels.gpt_4o
+    llm=OpenrouterModels.gpt_4o,
+    tools={CalculatorTools.basic_math}
 )
 
 def respond_to_query(math_tutor, user_query, history):
     response = Task.create(
         agent=math_tutor,
         instruction=f"Use your calculator thoroughly to answer the question: '{user_query}'.",
-        context=f"Conversation History:\n{history}\n\nUser query: '{user_query}'",
-        tools={CalculatorTools.basic_math}
+        context=f"Conversation History:\n{history}\n\nUser query: '{user_query}'"
     )
     return response
 
