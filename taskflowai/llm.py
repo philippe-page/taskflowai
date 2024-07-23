@@ -3,6 +3,7 @@ from typing import List, Union
 from anthropic import Anthropic, APIStatusError, APITimeoutError, APIConnectionError, APIResponseValidationError, RateLimitError
 from openai.types.chat import ChatCompletion
 from openai import OpenAI, APIError, APIConnectionError, APITimeoutError, RateLimitError, AuthenticationError
+import ollama
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -96,9 +97,6 @@ class OpenaiModels:
                 )
                 print_debug(f"Response received: {response}")
 
-                if response.model != model:
-                    print_error(f"Warning: Requested model {model}, but received response from {response.model}")
-
                 response_text = response.choices[0].message.content if response.choices else ""
                 print_api_response(response_text.strip())
                 print_debug(f"Returning response: {response_text.strip()}")
@@ -170,6 +168,10 @@ class OpenaiModels:
     @staticmethod
     def gpt_4o(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
         return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4o", image_data)
+    
+    @staticmethod
+    def gpt_4o_mini(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4o-mini", image_data)
 
     @staticmethod
     def gpt_4(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
@@ -178,7 +180,6 @@ class OpenaiModels:
     @staticmethod
     def custom_model(model: str, system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
         return OpenaiModels.send_openai_request(system_prompt, user_prompt, model, image_data)
-
 
 
 class AnthropicModels:
@@ -327,6 +328,7 @@ class AnthropicModels:
     @staticmethod
     def custom_model(model: str, system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
         return AnthropicModels.call_anthropic(system_prompt, user_prompt, model, image_data)
+    
 
 class OpenrouterModels:
     @staticmethod
@@ -504,6 +506,10 @@ class OpenrouterModels:
         return OpenrouterModels.call_openrouter_api("openai/gpt-4o", system_prompt, user_prompt, image_data)
     
     @staticmethod
+    def gpt_4o_mini(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OpenrouterModels.call_openrouter_api("openai/gpt-4o-mini", system_prompt, user_prompt, image_data)
+    
+    @staticmethod
     def gemini_flash_1_5(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
         return OpenrouterModels.call_openrouter_api("google/gemini-flash-1.5", system_prompt, user_prompt, image_data)
 
@@ -592,5 +598,217 @@ class OpenrouterModels:
         return OpenrouterModels.call_openrouter_api("deepseek/deepseek-coder", system_prompt, user_prompt, image_data)
 
     @staticmethod
-    def custom_llm(custom_model: str, system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+    def custom_model(custom_model: str, system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
         return OpenrouterModels.call_openrouter_api(custom_model, system_prompt, user_prompt, image_data)
+
+
+class OllamaModels:
+    @staticmethod
+    def call_ollama(model: str, system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        print_debug(f"Entering call_ollama function")
+        print_debug(f"Parameters: model={model}, system_prompt={system_prompt}, user_prompt={user_prompt}, image_data={image_data}")
+
+        max_retries = 6
+        base_delay = 5
+        max_delay = 60
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+
+        if image_data:
+            print_debug("Processing image data")
+            if isinstance(image_data, str):
+                image_data = [image_data]
+            
+            for i, image in enumerate(image_data, start=1):
+                messages.append({
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": f"Image {i}:"},
+                        {"type": "image", "image_url": {"url": image}}
+                    ]
+                })
+
+        print_debug(f"Final messages structure: {messages}")
+
+        for attempt in range(max_retries):
+            print_debug(f"Attempt {attempt + 1}/{max_retries}")
+            try:
+                print_api_request(f"Sending request to Ollama model: {model}")
+                print_api_request(f"System prompt: '{system_prompt}'")
+                print_api_request(f"User prompt: '{user_prompt}'")
+                if image_data:
+                    print_api_request(f"Images: {len(image_data)} included")
+                else:
+                    print_api_request("Images: None")
+
+                client = ollama.Client()
+                response = client.chat(model=model, messages=messages)
+
+                response_text = response['message']['content']
+                print_api_response(response_text.strip())
+                print_debug(f"Returning response: {response_text.strip()}")
+                return response_text.strip()
+
+            except ollama.ResponseError as e:
+                print_error(f"Ollama response error: {e}")
+                print_debug(f"ResponseError details: {e}")
+                if attempt < max_retries - 1:
+                    retry_delay = min(max_delay, base_delay * (2 ** attempt))
+                    jitter = random.uniform(0, 0.1 * retry_delay)
+                    total_delay = retry_delay + jitter
+                    print_api_request(f"Retrying in {total_delay:.2f} seconds...")
+                    time.sleep(total_delay)
+                else:
+                    raise
+
+            except ollama.RequestError as e:
+                print_error(f"Ollama request error: {e}")
+                print_debug(f"RequestError details: {e}")
+                raise
+
+            except Exception as e:
+                print_error(f"An unexpected error occurred: {e}")
+                print_debug(f"Unexpected error details: {type(e).__name__}, {e}")
+                raise
+
+        print_debug("Exiting call_ollama function with empty string")
+        return ""
+
+    # Llama 3 models
+    @staticmethod
+    def llama3_8b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("llama3", system_prompt, user_prompt, image_data)
+
+    @staticmethod
+    def llama3_70b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("llama3:70b", system_prompt, user_prompt, image_data)
+
+    # Gemma models
+    @staticmethod
+    def gemma_2b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("gemma:2b", system_prompt, user_prompt, image_data)
+
+    @staticmethod
+    def gemma_7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("gemma:7b", system_prompt, user_prompt, image_data)
+
+    # Mistral model
+    @staticmethod
+    def mistral_7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("mistral", system_prompt, user_prompt, image_data)
+
+    # Qwen models
+    @staticmethod
+    def qwen_0_5b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("qwen:0.5b", system_prompt, user_prompt, image_data)
+
+    @staticmethod
+    def qwen_1_8b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("qwen:1.8b", system_prompt, user_prompt, image_data)
+
+    @staticmethod
+    def qwen_4b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("qwen:4b", system_prompt, user_prompt, image_data)
+
+    @staticmethod
+    def qwen_32b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("qwen:32b", system_prompt, user_prompt, image_data)
+
+    @staticmethod
+    def qwen_72b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("qwen:72b", system_prompt, user_prompt, image_data)
+
+    @staticmethod
+    def qwen_110b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("qwen:110b", system_prompt, user_prompt, image_data)
+
+    # Phi-3 models
+    @staticmethod
+    def phi3_3b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("phi3:3b", system_prompt, user_prompt, image_data)
+
+    @staticmethod
+    def phi3_14b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("phi3:14b", system_prompt, user_prompt, image_data)
+
+    # Llama 2 models
+    @staticmethod
+    def llama2_7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("llama2:7b", system_prompt, user_prompt, image_data)
+
+    @staticmethod
+    def llama2_13b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("llama2:13b", system_prompt, user_prompt, image_data)
+
+    @staticmethod
+    def llama2_70b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("llama2:70b", system_prompt, user_prompt, image_data)
+
+    # CodeLlama models
+    @staticmethod
+    def codellama_7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("codellama:7b", system_prompt, user_prompt, image_data)
+
+    @staticmethod
+    def codellama_13b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("codellama:13b", system_prompt, user_prompt, image_data)
+
+    @staticmethod
+    def codellama_34b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("codellama:34b", system_prompt, user_prompt, image_data)
+
+    @staticmethod
+    def codellama_70b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("codellama:70b", system_prompt, user_prompt, image_data)
+
+    # Gemma 2 models
+    @staticmethod
+    def gemma2_9b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("gemma2:9b", system_prompt, user_prompt, image_data)
+
+    @staticmethod
+    def gemma2_27b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("gemma2:27b", system_prompt, user_prompt, image_data)
+
+    # Qwen 2 models
+    @staticmethod
+    def qwen2_0_5b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("qwen2:0.5b", system_prompt, user_prompt, image_data)
+
+    @staticmethod
+    def qwen2_1_5b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("qwen2:1.5b", system_prompt, user_prompt, image_data)
+
+    @staticmethod
+    def qwen2_7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("qwen2:7b", system_prompt, user_prompt, image_data)
+
+    @staticmethod
+    def qwen2_72b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("qwen2:72b", system_prompt, user_prompt, image_data)
+
+    # LLaVA model
+    @staticmethod
+    def llava(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("llava", system_prompt, user_prompt, image_data)
+
+    # Mixtral models
+    @staticmethod
+    def mixtral_8x7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("mixtral:8x7b", system_prompt, user_prompt, image_data)
+
+    @staticmethod
+    def mixtral_8x22b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("mixtral:8x22b", system_prompt, user_prompt, image_data)
+
+    # Dolphin Mixtral models
+    @staticmethod
+    def dolphin_mixtral_8x7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("dolphin-mixtral:8x7b", system_prompt, user_prompt, image_data)
+
+    @staticmethod
+    def dolphin_mixtral_8x22b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
+        return OllamaModels.call_ollama("dolphin-mixtral:8x22b", system_prompt, user_prompt, image_data)
