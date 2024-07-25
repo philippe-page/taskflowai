@@ -178,8 +178,8 @@ class OpenaiModels:
         return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4", image_data)
     
     @staticmethod
-    def custom_model(model: str, system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return OpenaiModels.send_openai_request(system_prompt, user_prompt, model, image_data)
+    def custom_model(model_name: str, system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None) -> str:
+        return OpenaiModels.send_openai_request(system_prompt, user_prompt, model_name, image_data)
 
 
 class AnthropicModels:
@@ -326,9 +326,8 @@ class AnthropicModels:
         return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-5-sonnet-20240620", image_data)
 
     @staticmethod
-    def custom_model(model: str, system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return AnthropicModels.call_anthropic(system_prompt, user_prompt, model, image_data)
-    
+    def custom_model(model_name: str, system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None) -> str:
+        return AnthropicModels.call_anthropic(system_prompt, user_prompt, model_name, image_data)
 
 class OpenrouterModels:
     @staticmethod
@@ -598,8 +597,8 @@ class OpenrouterModels:
         return OpenrouterModels.call_openrouter_api("deepseek/deepseek-coder", system_prompt, user_prompt, image_data)
 
     @staticmethod
-    def custom_model(custom_model: str, system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
-        return OpenrouterModels.call_openrouter_api(custom_model, system_prompt, user_prompt, image_data)
+    def custom_model(model_name: str, system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None) -> str:
+        return OpenrouterModels.call_openrouter_api(model_name, system_prompt, user_prompt, image_data)
 
 
 class OllamaModels:
@@ -812,3 +811,7 @@ class OllamaModels:
     @staticmethod
     def dolphin_mixtral_8x22b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None) -> str:
         return OllamaModels.call_ollama("dolphin-mixtral:8x22b", system_prompt, user_prompt, image_data)
+    
+    @staticmethod
+    def custom_model(model_name: str, system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None) -> str:
+        return OpenrouterModels.call_openrouter_api(model_name, system_prompt, user_prompt, image_data)
