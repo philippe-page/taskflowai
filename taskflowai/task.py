@@ -125,11 +125,11 @@ If no tools are needed, or if sufficient information is gathered above:
     "status": "READY"
 }}
 
-The original task instruction is:
-{self.instruction}
-
 The current timestamp is:
 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+
+The original task instruction is:
+{self.instruction}
 
 Now provide a valid JSON object indicating whether the necessary information to fulfill the task is present without any additional text before or after. Only use tools when absolutely necessary. If you have the information required to respond to the query in this context, then you will return 'READY' JSON. If you need more info to complete the task, then you will return the JSON object with the tool calls. **Consider whether you need to make tool calls successively or all at once. If the result of one tool call is required as input for another tool, make your calls one at a time. If multiple tool calls can be made independently, you may request them all at once. Successive tool calls can also be made one after the other, allowing you to wait for the result of one tool call before making another if needed.** Do not comment before or after the JSON; return *only a valid JSON* in any case.
 """,
@@ -222,17 +222,16 @@ Now provide a valid JSON object indicating whether the necessary information to 
 
     def _execute_final_task(self, tool_usage_history: str) -> str:
         if tool_usage_history:
-            tool_history_intro = "The following represents the past tool usage to retrieve relevant information. Use this information to assist your response, but focus on responding to the user's query or task instruction with this additional context rather than discussing the tool usage itself:\n"
-            instruction = f"{tool_history_intro}{tool_usage_history}\n----------\n{self.instruction}"
+            final_context = f"You have already performed the following actions:\n{tool_usage_history}\n\nDon't describe the process as if it's happening now, focus on addressing the instruction rather than discussing the tool usage itself.\n\n----------{self.context or ''}"
         else:
-            instruction = self.instruction
+            final_context = self.context or ''
 
         updated_task = Task(
             role=self.role,
             goal=self.goal,
             attributes=self.attributes,
-            context=self.context,
-            instruction=instruction,
+            context=final_context,
+            instruction=self.instruction,
             llm=self.llm,
             image_data=self.image_data
         )

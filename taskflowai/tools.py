@@ -1,11 +1,19 @@
-import ast, base64, cohere, datetime, io, json, os, random, requests, time, tiktoken, urllib
+import csv
+import base64
+import json
+import os
+import random
+import time
+import urllib
+import xml.etree.ElementTree as ET
+from datetime import timedelta, datetime
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
-from datetime import datetime, timedelta
-from elevenlabs.client import ElevenLabs
-from elevenlabs import play
+import pandas as pd
+import requests
+import yaml
 from bs4 import BeautifulSoup
+import cohere
 from fake_useragent import UserAgent
-from PIL import Image
 from tqdm import tqdm
 from dotenv import load_dotenv
 
@@ -33,8 +41,8 @@ class WebTools:
             queries (Union[str, List[str]]): The search query string or a list of query strings.
             num_results (int, optional): The number of search results to return per query. Defaults to 3.
             search_type (str, optional): The type of search to perform. Can be 'neural' or 'keyword'. Defaults to 'neural'.
-            num_sentences (int, optional): The number of sentences to include in each highlight. Defaults to 1.
-            highlights_per_url (int, optional): The number of highlights to include per URL. Defaults to 1.
+            num_sentences (int, optional): The number of sentences to include in each highlight. Defaults to 3.
+            highlights_per_url (int, optional): The number of highlights to include per URL. Defaults to 3.
 
         Returns:
             dict: A structured dictionary containing the search results. The dictionary includes:
@@ -884,132 +892,197 @@ class FileTools:
             return None
 
     @staticmethod
-    def image_to_base64(image_path: str, scale_factor: float = 0.5) -> str:
+    def read_csv(file_path: str) -> List[Dict[str, Any]]:
         """
-        Convert an image to a base64-encoded string, with optional resizing.
+        Read a CSV file and return its contents as a list of dictionaries.
 
         Args:
-            image_path (str): The path to the image file.
-            scale_factor (float, optional): Factor to scale the image dimensions. Defaults to 0.5.
+            file_path (str): The path to the CSV file.
 
         Returns:
-            str: Base64-encoded string representation of the (optionally resized) image.
+            List[Dict[str, Any]]: A list of dictionaries, where each dictionary represents a row in the CSV.
 
         Raises:
-            IOError: If there's an error opening or processing the image file.
+            FileNotFoundError: If the specified file is not found.
+            csv.Error: If there's an error parsing the CSV file.
         """
-        with Image.open(image_path) as img:
-            # Calculate new dimensions
-            new_width = int(img.width * scale_factor)
-            new_height = int(img.height * scale_factor)
-            
-            # Resize the image
-            resized_img = img.resize((new_width, new_height), Image.LANCZOS)
-            
-            # Save the resized image to a bytes buffer
-            buffer = io.BytesIO()
-            resized_img.save(buffer, format="PNG")
-            
-            # Encode the buffer to base64
-            encoded_string = base64.b64encode(buffer.getvalue()).decode("utf-8")
-        
-        return encoded_string
-
-    @staticmethod
-    def find_file_path(file_structure, file_name, current_path=""):
-        """
-        Recursively search for a file in a nested file structure.
-
-        Args:
-            file_structure (dict): A dictionary representing the file structure.
-            file_name (str): The name of the file to find.
-            current_path (str, optional): The current path in the recursion. Defaults to "".
-
-        Returns:
-            str or None: The full path of the file if found, None otherwise.
-        """
-        if file_structure["type"] == "file" and file_structure["name"] == os.path.basename(file_name):
-            return os.path.join(current_path, file_structure["name"])
-        elif file_structure["type"] == "directory":
-            for child in file_structure["children"]:
-                found_path = FileTools.find_file_path(child, file_name, os.path.join(current_path, file_structure["name"]))
-                if found_path:
-                    return found_path
-        return None
-
-    @staticmethod
-    def parse_python_functions(file_path):
-        """
-        Extract the source code of all functions from a Python file.
-
-        Args:
-            file_path (str): The path to the Python file.
-
-        Returns:
-            dict: A dictionary where keys are function names and values are their source code.
-                  Returns {'error': 'File not found'} if the file doesn't exist.
-        """
-        print_debug(f"Attempting to read file: {file_path}")
-
-        if not os.path.exists(file_path):
-            error_message = f"File not found: {file_path}"
-            print_error(error_message)
-            return {'error': 'File not found'}
-
         try:
-            with open(file_path, 'r') as file:
-                file_contents = file.read()
-
-            tree = ast.parse(file_contents)
-            functions = {}
-            for node in ast.walk(tree):
-                if isinstance(node, ast.FunctionDef):
-                    functions[node.name] = ast.unparse(node)
-
-            print_debug(f"Successfully extracted {len(functions)} functions from {file_path}")
-            return functions
-
-        except Exception as e:
-            error_message = f"Error processing file {file_path}: {str(e)}"
-            print_error(error_message)
-            return {'error': error_message}
+            with open(file_path, 'r', newline='', encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile)
+                return [row for row in reader]
+        except FileNotFoundError:
+            print(f"Error: CSV file not found at {file_path}")
+            raise
+        except csv.Error as e:
+            print(f"Error parsing CSV file: {e}")
+            raise
 
     @staticmethod
-    def parse_python_classes(file_path):
+    def read_json(file_path: str) -> Union[Dict[str, Any], List[Any]]:
         """
-        Extract the source code of all classes from a Python file.
+        Read a JSON file and return its contents.
 
         Args:
-            file_path (str): The path to the Python file.
+            file_path (str): The path to the JSON file.
 
         Returns:
-            dict: A dictionary where keys are class names and values are their source code.
-                  Returns {'error': 'File not found'} if the file doesn't exist.
+            Union[Dict[str, Any], List[Any]]: The parsed JSON data.
+
+        Raises:
+            FileNotFoundError: If the specified file is not found.
+            json.JSONDecodeError: If there's an error parsing the JSON file.
         """
-        print_debug(f"Attempting to read file: {file_path}")
-
-        if not os.path.exists(file_path):
-            error_message = f"File not found: {file_path}"
-            print_error(error_message)
-            return {'error': 'File not found'}
-
         try:
-            with open(file_path, 'r') as file:
-                file_contents = file.read()
+            with open(file_path, 'r', encoding='utf-8') as jsonfile:
+                return json.load(jsonfile)
+        except FileNotFoundError:
+            print(f"Error: JSON file not found at {file_path}")
+            raise
+        except json.JSONDecodeError as e:
+            print(f"Error parsing JSON file: {e}")
+            raise
 
-            tree = ast.parse(file_contents)
-            classes = {}
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ClassDef):
-                    classes[node.name] = ast.unparse(node)
+    @staticmethod
+    def read_xml(file_path: str) -> ET.Element:
+        """
+        Read an XML file and return its contents as an ElementTree.
 
-            print_debug(f"Successfully extracted {len(classes)} classes from {file_path}")
-            return classes
+        Args:
+            file_path (str): The path to the XML file.
 
-        except Exception as e:
-            error_message = f"Error processing file {file_path}: {str(e)}"
-            print_error(error_message)
-            return {'error': error_message}
+        Returns:
+            ET.Element: The root element of the parsed XML.
+
+        Raises:
+            FileNotFoundError: If the specified file is not found.
+            ET.ParseError: If there's an error parsing the XML file.
+        """
+        try:
+            tree = ET.parse(file_path)
+            return tree.getroot()
+        except FileNotFoundError:
+            print(f"Error: XML file not found at {file_path}")
+            raise
+        except ET.ParseError as e:
+            print(f"Error parsing XML file: {e}")
+            raise
+
+    @staticmethod
+    def read_yaml(file_path: str) -> Union[Dict[str, Any], List[Any]]:
+        """
+        Read a YAML file and return its contents.
+
+        Args:
+            file_path (str): The path to the YAML file.
+
+        Returns:
+            Union[Dict[str, Any], List[Any]]: The parsed YAML data.
+
+        Raises:
+            FileNotFoundError: If the specified file is not found.
+            yaml.YAMLError: If there's an error parsing the YAML file.
+        """
+        try:
+            with open(file_path, 'r', encoding='utf-8') as yamlfile:
+                return yaml.safe_load(yamlfile)
+        except FileNotFoundError:
+            print(f"Error: YAML file not found at {file_path}")
+            raise
+        except yaml.YAMLError as e:
+            print(f"Error parsing YAML file: {e}")
+            raise
+
+    @staticmethod
+    def search_csv(file_path: str, search_column: str, search_value: Any) -> List[Dict[str, Any]]:
+        """
+        Search for a specific value in a CSV file and return matching rows.
+
+        Args:
+            file_path (str): The path to the CSV file.
+            search_column (str): The name of the column to search in.
+            search_value (Any): The value to search for.
+
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries representing matching rows.
+
+        Raises:
+            FileNotFoundError: If the specified file is not found.
+            KeyError: If the specified search column doesn't exist in the CSV.
+        """
+        try:
+            df = pd.read_csv(file_path)
+            if search_column not in df.columns:
+                raise KeyError(f"Column '{search_column}' not found in the CSV file.")
+            return df[df[search_column] == search_value].to_dict('records')
+        except FileNotFoundError:
+            print(f"Error: CSV file not found at {file_path}")
+            raise
+        except KeyError as e:
+            print(f"Error: {e}")
+            raise
+
+    @staticmethod
+    def search_json(data: Union[Dict[str, Any], List[Any]], search_key: str, search_value: Any) -> List[Any]:
+        """
+        Search for a specific key-value pair in a JSON structure and return matching items.
+
+        Args:
+            data (Union[Dict[str, Any], List[Any]]): The JSON data to search.
+            search_key (str): The key to search for.
+            search_value (Any): The value to match.
+
+        Returns:
+            List[Any]: A list of items that match the search criteria.
+        """
+        results = []
+
+        def search_recursive(item):
+            if isinstance(item, dict):
+                if search_key in item and item[search_key] == search_value:
+                    results.append(item)
+                for value in item.values():
+                    search_recursive(value)
+            elif isinstance(item, list):
+                for element in item:
+                    search_recursive(element)
+
+        search_recursive(data)
+        return results
+
+    @staticmethod
+    def search_xml(root: ET.Element, tag: str, attribute: str = None, value: str = None) -> List[ET.Element]:
+        """
+        Search for specific elements in an XML structure.
+
+        Args:
+            root (ET.Element): The root element of the XML to search.
+            tag (str): The tag name to search for.
+            attribute (str, optional): The attribute name to match. Defaults to None.
+            value (str, optional): The attribute value to match. Defaults to None.
+
+        Returns:
+            List[ET.Element]: A list of matching XML elements.
+        """
+        if attribute and value:
+            return root.findall(f".//*{tag}[@{attribute}='{value}']")
+        else:
+            return root.findall(f".//*{tag}")
+
+    @staticmethod
+    def search_yaml(data: Union[Dict[str, Any], List[Any]], search_key: str, search_value: Any) -> List[Any]:
+        """
+        Search for a specific key-value pair in a YAML structure and return matching items.
+
+        Args:
+            data (Union[Dict[str, Any], List[Any]]): The YAML data to search.
+            search_key (str): The key to search for.
+            search_value (Any): The value to match.
+
+        Returns:
+            List[Any]: A list of items that match the search criteria.
+        """
+        # YAML is parsed into Python data structures, so we can reuse the JSON search method
+        return FileTools.search_json(data, search_key, search_value)
 
 
 class EmbeddingsTools:
@@ -1727,6 +1800,129 @@ class GitHubTools:
         }
 
 
+    @staticmethod
+    def get_repo_contents(owner: str, repo: str, path: str = "") -> List[Dict[str, Any]]:
+        """
+        Get contents of a repository directory or file.
+
+        Args:
+            owner (str): The owner (user or organization) of the repository.
+            repo (str): The name of the repository.
+            path (str, optional): The directory or file path. Defaults to root directory.
+
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries containing information about the contents.
+
+        Raises:
+            requests.exceptions.HTTPError: If the API request fails.
+        """
+        base_url = "https://api.github.com"
+        headers = {"Accept": "application/vnd.github+json"}
+        url = f"{base_url}/repos/{owner}/{repo}/contents/{path}"
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+
+    @staticmethod
+    def get_file_content(owner: str, repo: str, path: str) -> str:
+        """
+        Get the content of a specific file in the repository.
+
+        Args:
+            owner (str): The owner (user or organization) of the repository.
+            repo (str): The name of the repository.
+            path (str): The file path within the repository.
+
+        Returns:
+            str: The content of the file.
+
+        Raises:
+            requests.exceptions.HTTPError: If the API request fails.
+        """
+        base_url = "https://api.github.com"
+        headers = {"Accept": "application/vnd.github+json"}
+        url = f"{base_url}/repos/{owner}/{repo}/contents/{path}"
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        content = response.json()["content"]
+        return base64.b64decode(content).decode('utf-8')
+
+    @staticmethod
+    def get_directory_structure(owner: str, repo: str, path: str = "") -> Dict[str, Any]:
+        """
+        Get the directory structure of a repository.
+
+        Args:
+            owner (str): The owner (user or organization) of the repository.
+            repo (str): The name of the repository.
+            path (str, optional): The directory path. Defaults to root directory.
+
+        Returns:
+            Dict[str, Any]: A nested dictionary representing the directory structure.
+
+        Raises:
+            requests.exceptions.HTTPError: If the API request fails.
+        """
+        contents = GitHubTools.get_repo_contents(owner, repo, path)
+        structure = {}
+        for item in contents:
+            if item['type'] == 'dir':
+                structure[item['name']] = GitHubTools.get_directory_structure(owner, repo, item['path'])
+            else:
+                structure[item['name']] = item['type']
+        return structure
+
+    @staticmethod
+    def search_code(query: str, owner: str, repo: str, max_results: int = 10) -> Dict[str, Any]:
+        """
+        Search for code within a specific repository.
+
+        Args:
+            query (str): The search query.
+            owner (str): The owner (user or organization) of the repository.
+            repo (str): The name of the repository.
+            max_results (int, optional): Maximum number of results to return. Defaults to 10.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing search results and metadata.
+
+        Raises:
+            requests.exceptions.HTTPError: If the API request fails.
+        """
+        base_url = "https://api.github.com"
+        headers = {"Accept": "application/vnd.github+json"}
+        url = f"{base_url}/search/code"
+        params = {
+            "q": f"{query} repo:{owner}/{repo}",
+            "per_page": min(max_results, 100)
+        }
+
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        data = response.json()
+
+        def simplify_code_result(item: Dict[str, Any]) -> Dict[str, Any]:
+            return {
+                "name": item["name"],
+                "path": item["path"],
+                "sha": item["sha"],
+                "url": item["html_url"],
+                "repository": {
+                    "name": item["repository"]["name"],
+                    "full_name": item["repository"]["full_name"],
+                    "owner": item["repository"]["owner"]["login"]
+                }
+            }
+
+        simplified_results = [simplify_code_result(item) for item in data['items'][:max_results]]
+
+        return {
+            "total_count": data['total_count'],
+            "incomplete_results": data['incomplete_results'],
+            "items": simplified_results
+        }
+
+
 class AmadeusTools:
     @staticmethod
     def _get_access_token():
@@ -1944,36 +2140,6 @@ class AmadeusTools:
 
 
 class AudioTools:
-    @staticmethod
-    def text_to_speech(text: str, voice: str = "Giovanni", model: str = "eleven_multilingual_v2"):
-        """
-        Convert text to speech using the ElevenLabs API and play the generated audio.
-
-        Args:
-            text (str): The text to convert to speech.
-            voice (str, optional): The name of the voice to use. Defaults to "Giovanni".
-            model (str, optional): The model to use for text-to-speech. Defaults to "eleven_multilingual_v2".
-
-        Returns:
-            None
-        """
-        load_dotenv()
-        api_key = os.getenv('ELEVENLABS_API_KEY')
-        
-        if not api_key:
-            raise ValueError("ELEVENLABS_API_KEY not found in environment variables")
-
-        client = ElevenLabs(api_key=api_key)
-
-        audio = client.generate(
-            text=text,
-            voice=voice,
-            model=model
-        )
-
-        play(audio)
-        return audio
-    
 
     @staticmethod
     def transcribe_audio(
@@ -2104,41 +2270,75 @@ class CalculatorTools:
     @staticmethod
     def basic_math(operation: str, args: list) -> float:
         """
-        Perform basic math operations on multiple numbers.
+        Perform basic and advanced math operations on multiple numbers.
 
         Args:
-            operation (str): One of 'add', 'subtract', 'multiply', or 'divide'.
+            operation (str): One of 'add', 'subtract', 'multiply', 'divide', 'exponent', 'root', 'modulo', or 'factorial'.
             args (list): List of numbers to perform the operation on.
 
         Returns:
             float: Result of the operation.
 
         Raises:
-            ValueError: If an invalid operation is provided, if dividing by zero, or if fewer than two numbers are provided.
-        """
-        if len(args) < 2:
-            raise ValueError("At least two numbers are required for the operation.")
+            ValueError: If an invalid operation is provided, if dividing by zero, if fewer than required numbers are provided, or for invalid inputs.
 
+        Note:
+            This method does not take in letters or words. It only takes in numbers.
+        """
+        if len(args) < 1:
+            raise ValueError("At least one number is required for the operation.")
+
+        # Convert all args to float, except for factorial which requires int
+        if operation != 'factorial':
+            args = [float(arg) for arg in args]
+        
         result = args[0]
 
-        if operation == 'add':
-            for num in args[1:]:
-                result += num
-        elif operation == 'subtract':
-            for num in args[1:]:
-                result -= num
-        elif operation == 'multiply':
-            for num in args[1:]:
-                result *= num
-        elif operation == 'divide':
-            for num in args[1:]:
-                if num == 0:
-                    raise ValueError("Cannot divide by zero")
-                result /= num
-        else:
-            raise ValueError("Invalid operation. Choose 'add', 'subtract', 'multiply', or 'divide'.")
+        if operation in ['add', 'subtract', 'multiply', 'divide']:
+            if len(args) < 2:
+                raise ValueError("At least two numbers are required for this operation.")
 
-        return result
+            if operation == 'add':
+                for num in args[1:]:
+                    result += num
+            elif operation == 'subtract':
+                for num in args[1:]:
+                    result -= num
+            elif operation == 'multiply':
+                for num in args[1:]:
+                    result *= num
+            elif operation == 'divide':
+                for num in args[1:]:
+                    if num == 0:
+                        raise ValueError("Cannot divide by zero")
+                    result /= num
+        elif operation == 'exponent':
+            if len(args) != 2:
+                raise ValueError("Exponent operation requires exactly two numbers.")
+            result = args[0] ** args[1]
+        elif operation == 'root':
+            if len(args) != 2:
+                raise ValueError("Root operation requires exactly two numbers.")
+            if args[1] == 0:
+                raise ValueError("Cannot calculate 0th root")
+            result = args[0] ** (1 / args[1])
+        elif operation == 'modulo':
+            if len(args) != 2:
+                raise ValueError("Modulo operation requires exactly two numbers.")
+            if args[1] == 0:
+                raise ValueError("Cannot perform modulo with zero")
+            result = args[0] % args[1]
+        elif operation == 'factorial':
+            if len(args) != 1 or args[0] < 0 or not isinstance(args[0], int):
+                raise ValueError("Factorial operation requires exactly one non-negative integer.")
+            result = 1
+            for i in range(1, args[0] + 1):
+                result *= i
+        else:
+            raise ValueError("Invalid operation. Choose 'add', 'subtract', 'multiply', 'divide', 'exponent', 'root', 'modulo', or 'factorial'.")
+
+        # Convert the result to a string before returning
+        return str(result)
 
     @staticmethod
     def get_current_time() -> str:

@@ -1,95 +1,56 @@
-import tiktoken, datetime
+from datetime import datetime
+import base64, io
+from PIL import Image
 
 class Utils:
-    @staticmethod
-    def estimate_token_count(text, model=None):
-        """
-        Estimate the number of tokens in the given text using the specified model's encoding.
-
-        This method attempts to use the encoding for the specified model. If the model is not found,
-        it falls back to the 'cl100k_base' encoding.
-
-        Args:
-            text (str): The input text to estimate token count for.
-            model (str, optional): The model to use for encoding. Defaults to "gpt-3.5-turbo" if None.
-
-        Returns:
-            int: The estimated number of tokens in the input text.
-
-        Raises:
-            KeyError: If the specified model is not found and the fallback encoding fails.
-
-        Note:
-            This method requires the 'tiktoken' library to be installed.
-        """
-        if model is None:
-            model = "gpt-3.5-turbo"
-        try:
-            encoding = tiktoken.encoding_for_model(model)
-            return len(encoding.encode(text))
-        except KeyError:
-            print(f"Warning: model {model} not found. Using cl100k_base encoding.")
-            encoding = tiktoken.get_encoding("cl100k_base")
-            return len(encoding.encode(text))
 
     @staticmethod
-    def format_message(role, content):
+    def update_conversation_history(history, role, content):
         """
-        Format a message with a timestamp and role.
+        Format a message with a timestamp and role, then update the conversation history.
 
         Args:
+            history (list): The current conversation history as a list of formatted messages.
             role (str): The role of the message sender (either "User" or "Assistant").
             content (str): The message content.
 
         Returns:
-            str: Formatted message with timestamp and role.
+            list: Updated conversation history.
         """
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        return f"[{timestamp}] {role}: {content}"
+        formatted_message = f"[{timestamp}] {role}: {content}"
+        history.append(formatted_message)
+        return history
+
 
     @staticmethod
-    def update_history(history, role, message):
+    def image_to_base64(image_path: str, scale_factor: float = 0.5) -> str:
         """
-        Update the conversation history with the latest message.
+        Convert an image to a base64-encoded string, with optional resizing.
 
         Args:
-            history (str): The current conversation history.
-            role (str): The role of the message sender (either "User" or "Assistant").
-            message (str): The message content.
+            image_path (str): The path to the image file.
+            scale_factor (float, optional): Factor to scale the image dimensions. Defaults to 0.5.
 
         Returns:
-            str: Updated conversation history.
+            str: Base64-encoded string representation of the (optionally resized) image.
+
+        Raises:
+            IOError: If there's an error opening or processing the image file.
         """
-        formatted_message = Utils.format_message(role, message)
-        history += f"\n{formatted_message}"
-        return history.strip()
-
-    @staticmethod
-    def truncate_history(history, max_tokens=8000):
-        """
-        Truncate the conversation history to a maximum token count, always keeping the latest messages.
-
-        Args:
-            history (str): The current conversation history.
-            max_tokens (int): The maximum number of tokens to keep.
-
-        Returns:
-            str: Truncated conversation history.
-        """
-        messages = history.split('\n')
-        total_tokens = sum(Utils.estimate_token_count(msg) for msg in messages)
-
-        if total_tokens <= max_tokens:
-            return history
-
-        truncated_history = []
-        current_tokens = 0
-
-        for message in reversed(messages):
-            message_tokens = Utils.estimate_token_count(message)
-            if current_tokens + message_tokens > max_tokens:
-                break
-            truncated_history.append(message)
-            current_tokens += message_tokens
-
-        return '\n'.join(reversed(truncated_history))
+        with Image.open(image_path) as img:
+            # Calculate new dimensions
+            new_width = int(img.width * scale_factor)
+            new_height = int(img.height * scale_factor)
+            
+            # Resize the image
+            resized_img = img.resize((new_width, new_height), Image.LANCZOS)
+            
+            # Save the resized image to a bytes buffer
+            buffer = io.BytesIO()
+            resized_img.save(buffer, format="PNG")
+            
+            # Encode the buffer to base64
+            encoded_string = base64.b64encode(buffer.getvalue()).decode("utf-8")
+        
+        return encoded_string
