@@ -1,0 +1,83 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "taskflowai"
+version = "0.1.7"
+description = "TaskFlowAI is a lightweight python framework for building LLM based pipelines and multi-agent teams"
+readme = "README.md"
+requires-python = ">=3.7"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Philippe Andre Page", email = "philippeandrepage@gmail.com"},
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+    "requests>=2.31,<3.0",
+    "pydantic>=1.10,<2.0",
+    "anthropic>=0.31.2,<0.32.0",
+    "openai>=1.37.0,<2.0.0",
+    "cohere>=5.6.2,<6.0",
+    "beautifulsoup4>=4.12,<5.0",
+    "fake-useragent>=1.1,<2.0",
+    "Pillow>=9.5,<10.0",
+    "tqdm>=4.65,<5.0",
+    "python-dotenv>=1.0,<2.0",
+    "PyYAML>=6.0,<7.0",
+    "pandas>=2.2,<3.0",
+    "ollama>=0.1.0,<0.2.0",
+    "lxml>=4.9,<5.0",
+    "halo>=0.0.31,<0.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0,<8.0",
+    "black>=23.0,<24.0",
+    "isort>=5.0,<6.0",
+    "mypy>=1.0,<2.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/philippe-page/taskflowai/"
+"Bug Tracker" = "https://github.com/philippe-page/taskflowai/issues"
+"Documentation" = "https://taskflowai.org" 
+
+[tool.setuptools.packages.find]
+include = ["taskflowai*"]
+exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+taskflowai = ["py.typed"]
+
+[tool.black]
+line-length = 100
+target-version = ['py37']
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.7"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+]
