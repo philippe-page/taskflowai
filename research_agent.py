@@ -1,7 +1,4 @@
-from taskflowai.task import Task
-from taskflowai.tools import WebTools
-from taskflowai.agent import Agent
-from taskflowai.llm import OpenrouterModels
+from taskflowai import Task, Agent, OpenrouterModels, WebTools
 
 agent = Agent(
     role="research assistant",
