@@ -1,4 +1,4 @@
-from taskflowai.task import Task, Agent, OpenrouterModels, GitHubTools, FileTools
+from taskflowai import Task, Agent, OpenrouterModels, GitHubTools, FileTools
 import time
 
 researcher = Agent(
