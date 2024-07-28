@@ -102,7 +102,11 @@ class OpenaiModels:
         base_delay = 5
         max_delay = 60
 
-        spinner = Halo(text='Sending request to OpenAI...\n', spinner='dots')
+        print_api_request(f"{system_prompt}\n{user_prompt}")
+        if image_data:
+            print_api_request("Images: Included")
+
+        spinner = Halo(text='Sending request to OpenAI...', spinner='dots')
         stop_spinner = threading.Event()
 
         def spin():
@@ -118,10 +122,6 @@ class OpenaiModels:
             for attempt in range(max_retries):
                 print_debug(f"Attempt {attempt + 1}/{max_retries}")
                 try:
-                    print_api_request(f"{system_prompt}\n{user_prompt}")
-                    if image_data:
-                        print_api_request("Images: Included")
-
                     print_debug("Creating chat completion")
                     response: ChatCompletion = client.chat.completions.create(
                         messages=messages,
@@ -132,7 +132,6 @@ class OpenaiModels:
                     print_debug(f"Response received: {response}")
 
                     response_text = response.choices[0].message.content if response.choices else ""
-                    print_api_response(response_text.strip())
                     return response_text.strip()
 
                 except RateLimitError as e:
@@ -179,6 +178,7 @@ class OpenaiModels:
             spinner_thread.join()
             if 'response_text' in locals() and response_text:
                 spinner.succeed('Request completed')
+                print_api_response(response_text.strip())
             else:
                 spinner.fail('Request failed')
 
@@ -203,8 +203,10 @@ class OpenaiModels:
         return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4", image_data, temperature, max_tokens)
     
     @staticmethod
-    def custom_model(model_name: str, system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> str:
-        return OpenaiModels.send_openai_request(system_prompt, user_prompt, model_name, image_data, temperature, max_tokens)
+    def custom_model(model_name: str):
+        def wrapper(system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> str:
+            return OpenaiModels.send_openai_request(system_prompt, user_prompt, model_name, image_data, temperature, max_tokens)
+        return wrapper
 
 class AnthropicModels:
     @staticmethod
@@ -217,7 +219,11 @@ class AnthropicModels:
         max_retries = 6
         base_delay = 5
 
-        spinner = Halo(text='Sending request to Anthropic...\n', spinner='dots')
+        print_api_request(f"{system_prompt}\n{user_prompt}")
+        if image_data:
+            print_api_request("Images: (base64-encoded)")
+
+        spinner = Halo(text='Sending request to Anthropic...', spinner='dots')
         stop_spinner = threading.Event()
 
         def spin():
@@ -269,12 +275,8 @@ class AnthropicModels:
                             })
                         
                         messages[0]["content"].append({"type": "text", "text": user_prompt})
-                        print_api_request(f"{system_prompt}\n{user_prompt}")    
-                        print_api_request("Images: (base64-encoded)")
                     else:
                         messages[0]["content"] = user_prompt
-                        print_api_request(system_prompt)
-                        print_api_request(user_prompt)
                     
                     print_debug(f"Final messages structure: {messages}")
                     
@@ -291,7 +293,6 @@ class AnthropicModels:
                     response_text = " ".join(response_texts)
                     print_debug(f"Processed response text (truncated): {response_text[:100]}...")
                     
-                    print_api_response(response_text)
                     return response_text
 
                 except RateLimitError as e:
@@ -347,6 +348,7 @@ class AnthropicModels:
             spinner_thread.join()
             if 'response_text' in locals() and response_text:
                 spinner.succeed('Request completed')
+                print_api_response(response_text)
             else:
                 spinner.fail('Request failed')
     
@@ -367,8 +369,11 @@ class AnthropicModels:
         return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-5-sonnet-20240620", image_data, temperature, max_tokens)
 
     @staticmethod
-    def custom_model(model_name: str, system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> str:
-        return AnthropicModels.call_anthropic(system_prompt, user_prompt, model_name, image_data, temperature, max_tokens)
+    def custom_model(model_name: str):
+        def wrapper(system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> str:
+            return AnthropicModels.call_anthropic(system_prompt, user_prompt, model_name, image_data, temperature, max_tokens)
+        return wrapper
+
 class OpenrouterModels:
     @staticmethod
     def call_openrouter_api(model_key: str, system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> str:
@@ -377,7 +382,11 @@ class OpenrouterModels:
             print_debug(f"Entering call_openrouter_api function")
             print_debug(f"Parameters: model_key={model_key}, system_prompt={system_prompt}, user_prompt={user_prompt}, image_data={image_data}, temperature={temperature}, max_tokens={max_tokens}")
 
-        spinner = Halo(text='Sending request to OpenRouter...\n', spinner='dots')
+        print_api_request(f"{system_prompt}\n{user_prompt}")
+        if image_data:
+            print_api_request(f"Image data included: {len(image_data) if isinstance(image_data, list) else 1} image(s)")
+
+        spinner = Halo(text='Sending request to OpenRouter...', spinner='dots')
         stop_spinner = threading.Event()
 
         def spin():
@@ -464,9 +473,6 @@ class OpenrouterModels:
                 "temperature": temperature
             }
             print_debug(f"Request body prepared: {body}")
-            print_api_request(f"{system_prompt}\n{user_prompt}")
-            if image_data:
-                print_api_request(f"Image data included: {len(image_data) if isinstance(image_data, list) else 1} image(s)")
 
             try:
                 print_debug("Sending POST request to Openrouter API")
@@ -478,7 +484,6 @@ class OpenrouterModels:
                 
                 if 'choices' in response_data and len(response_data['choices']) > 0:
                     generated_text = response_data['choices'][0]['message']['content']
-                    print_api_response(generated_text.strip())
                     print_debug(f"Generated text: {generated_text.strip()}")
                     return generated_text.strip()
                 else:
@@ -529,6 +534,7 @@ class OpenrouterModels:
             spinner_thread.join()
             if 'generated_text' in locals() and generated_text:
                 spinner.succeed('Request completed')
+                print_api_response(generated_text.strip())
             else:
                 spinner.fail('Request failed')
 
@@ -659,8 +665,10 @@ class OpenrouterModels:
         return OpenrouterModels.call_openrouter_api("deepseek/deepseek-coder", system_prompt, user_prompt, image_data, temperature, max_tokens)
 
     @staticmethod
-    def custom_model(model_name: str, system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> str:
-        return OpenrouterModels.call_openrouter_api(model_name, system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def custom_model(model_name: str):
+        def wrapper(system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> str:
+            return OpenrouterModels.call_openrouter_api(model_name, system_prompt, user_prompt, image_data, temperature, max_tokens)
+        return wrapper
 
 class OllamaModels:
     @staticmethod
@@ -674,7 +682,11 @@ class OllamaModels:
         base_delay = 5
         max_delay = 60
 
-        spinner = Halo(text='Sending request to Ollama...\n', spinner='dots')
+        print_api_request(f"{system_prompt}\n{user_prompt}")
+        if image_data:
+            print_api_request("Images: Included")
+
+        spinner = Halo(text='Sending request to Ollama...', spinner='dots')
         stop_spinner = threading.Event()
 
         def spin():
@@ -711,18 +723,10 @@ class OllamaModels:
             for attempt in range(max_retries):
                 print_debug(f"Attempt {attempt + 1}/{max_retries}")
                 try:
-                    print_api_request(f"{system_prompt}\n{user_prompt}")
-                    if image_data:
-                        print_api_request(f"Images: {len(image_data)} included")
-                    else:
-                        print_api_request("Images: None")
-
                     client = ollama.Client()
                     response = client.chat(model=model, messages=messages)
 
                     response_text = response['message']['content']
-                    print_api_response(response_text.strip())
-                    print_debug(f"Returning response: {response_text.strip()}")
                     return response_text.strip()
 
                 except ollama.ResponseError as e:
@@ -747,7 +751,6 @@ class OllamaModels:
                     print_debug(f"Unexpected error details: {type(e).__name__}, {e}")
                     raise
 
-            print_debug("Exiting call_ollama function with empty string")
             return ""
 
         finally:
@@ -755,6 +758,7 @@ class OllamaModels:
             spinner_thread.join()
             if 'response_text' in locals() and response_text:
                 spinner.succeed('Request completed')
+                print_api_response(response_text.strip())
             else:
                 spinner.fail('Request failed')
 
@@ -895,7 +899,8 @@ class OllamaModels:
         return OllamaModels.call_ollama("dolphin-mixtral:8x22b", system_prompt, user_prompt, image_data, temperature, max_tokens)
     
     @staticmethod
-    def custom_model(model_name: str, system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> str:
-        return OpenrouterModels.call_openrouter_api(model_name, system_prompt, user_prompt, image_data, temperature, max_tokens)
-    
+    def custom_model(model_name: str):
+        def wrapper(system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> str:
+            return OllamaModels.call_ollama(model_name, system_prompt, user_prompt, image_data, temperature, max_tokens)
+        return wrapper
 

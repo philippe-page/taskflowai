@@ -7,6 +7,8 @@ class Agent(BaseModel):
     attributes: Optional[str] = Field(None, description="Additional attributes or characteristics of the agent")
     llm: Optional[Callable] = Field(None, description="The language model function to be used by the agent")
     tools: Optional[Set[Callable]] = Field(default=None, description="Optional set of tool functions")
+    temperature: Optional[float] = Field(default=0.7, description="The temperature for the language model")
+    max_tokens: Optional[int] = Field(default=4000, description="The maximum number of tokens for the language model")
 
     class Config:
         arbitrary_types_allowed = True

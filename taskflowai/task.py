@@ -9,6 +9,7 @@ COLORS = {
     "LABEL": "\033[96m",  # Cyan
     "TOOL_NAME": "\033[1;34m",  # Bold Blue for tool names
     "PARAM_VALUE": "\033[1;35m",  # Bold Magenta (Pink) for parameter values
+    "RESULT_VALUE": "\033[32m",  # Green for result values
     "WARNING": "\033[1;33m",  # Bold Yellow for warnings
     "ERROR": "\033[1;31m",  # Bold Red for tool errors
 }
@@ -23,6 +24,8 @@ class Task(BaseModel):
     image_data: Optional[Union[List[str], str]] = Field(None, description="Optional base64-encoded image data")
     agent: Optional[Any] = Field(None, description="The agent associated with this task")
     tools: Optional[Set[Callable]] = Field(default=None, description="Optional set of tool functions")
+    temperature: Optional[float] = Field(default=0.7, description="Temperature setting for the language model")
+    max_tokens: Optional[int] = Field(default=4000, description="Maximum number of tokens for the language model response")
 
 
     @classmethod
@@ -30,7 +33,9 @@ class Task(BaseModel):
                 goal: Optional[str] = None, attributes: Optional[str] = None, 
                 context: Optional[str] = None, instruction: Optional[str] = None, 
                 llm: Optional[Callable] = None, tools: Optional[Set[Callable]] = None, 
-                image_data: Optional[Union[List[str], str]] = None):
+                image_data: Optional[Union[List[str], str]] = None,
+                temperature: Optional[float] = None,
+                max_tokens: Optional[int] = None):
         """
 Create and execute a Task instance. 
 This method works with either an Agent object or direct task parameters.
@@ -48,6 +53,8 @@ Args:
     instruction (str): Specific direction for completing the task
     tools (Optional[Set[Callable]]): Set of tool functions (e.g. {WebTools.scrape_url, WebTools.search_tool})
     image_data (Optional[Union[List[str], str]]): Optional base64-encoded image data for image-based tasks
+    temperature (float): Temperature setting for the language model
+    max_tokens (int): Maximum number of tokens for the language model response
 
 Returns:
     str: The result of executing the created Task.
@@ -65,7 +72,9 @@ Raises:
                 "instruction": instruction,
                 "llm": agent.llm,
                 "tools": agent.tools or tools,  # Use agent's tools if available, otherwise use provided tools
-                "image_data": image_data
+                "image_data": image_data,
+                "temperature": getattr(agent, 'temperature', temperature or 0.7),  # Use 0.7 as default
+                "max_tokens": getattr(agent, 'max_tokens', max_tokens or 4000)  # Use 4000 as default
             }
         elif role and goal and instruction and llm:
             task_data = {
@@ -76,7 +85,9 @@ Raises:
                 "instruction": instruction,
                 "llm": llm,
                 "tools": tools,
-                "image_data": image_data
+                "image_data": image_data,
+                "temperature": temperature or 0.7,  # Use 0.7 as default
+                "max_tokens": max_tokens or 4000  # Use 4000 as default
             }
         else:
             raise ValueError("Either an agent or all required task parameters (role, goal, instruction, llm) must be provided.")
@@ -135,7 +146,9 @@ Now provide a valid JSON object indicating whether the necessary information to 
 """,
             context=(f"{self.context}\n\n{tool_descriptions}\n{tool_usage_history}" if self.context else f"{tool_descriptions}\n{tool_usage_history}").strip(),
             llm=self.llm,
-            tools=self.tools
+            tools=self.tools,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens
         )
         max_iterations = 5
         tool_usage_history = ""
@@ -180,8 +193,8 @@ Now provide a valid JSON object indicating whether the necessary information to 
                                     tool_loop_task.instruction += tool_result  # Update instruction instead of tool_usage_history
 
                                     # Print a snippet of the result
-                                    result_snippet = str(result)[:250] + "..." if len(str(result)) > 250 else str(result)
-                                    print(f"{COLORS['LABEL']}Result: {COLORS['PARAM_VALUE']}{result_snippet}{COLORS['RESET']}")
+                                    result_snippet = str(result)[:400] + "..." if len(str(result)) > 400 else str(result)
+                                    print(f"{COLORS['LABEL']}Result: {COLORS['RESULT_VALUE']}{result_snippet}{COLORS['RESET']}")
                                     print()  # Add a newline for better separation
 
                                 except Exception as e:
@@ -233,7 +246,10 @@ Now provide a valid JSON object indicating whether the necessary information to 
             context=final_context,
             instruction=self.instruction,
             llm=self.llm,
-            image_data=self.image_data
+            tools=self.tools,
+            image_data=self.image_data,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens
         )
         
         return updated_task.llm(updated_task.system_prompt(), updated_task.user_prompt(), image_data=updated_task.image_data)
@@ -244,4 +260,4 @@ Now provide a valid JSON object indicating whether the necessary information to 
             tool_usage_history = self._execute_tool_loop()
             return self._execute_final_task(tool_usage_history)
         else:
-            return self.llm(self.system_prompt(), self.user_prompt(), image_data=self.image_data)
+            return self.llm(self.system_prompt(), self.user_prompt(), image_data=self.image_data, temperature=self.temperature, max_tokens=self.max_tokens)

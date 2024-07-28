@@ -2,7 +2,7 @@
 TaskFlowAI: A lightweight Python framework for building and orchestrating multi-agent systems powered by LLMs.
 """
 
-__version__ = "0.1.8"
+__version__ = "0.2.3"
 
 # Import main classes and functions
 from .llm import OpenaiModels, AnthropicModels, OpenrouterModels, OllamaModels, set_verbosity
