@@ -29,11 +29,3 @@ The framework is built around several core components. Tasks serve as discrete u
       tools={WebTools.serper_search}
    )
 ```
-
-3. Create your workflows by defining tasks, agents, and tools
-
-## Examples
-
-TaskFlowAI supports various use cases, from a simple agent system to complex multi-agent teams. Check out the documentation for detailed examples and usage patterns at taskflowai.org.
-
-TaskFlowAI empowers developers to build sophisticated AI applications that can handle a wide range of tasks efficiently and effectively. Whether you're creating a simple chatbot or a complex multi-agent system, TaskFlowAI provides the building blocks and extensibility to bring your ideas to life.
