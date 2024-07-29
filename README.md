@@ -19,7 +19,7 @@ The framework is built around several core components. Tasks serve as discrete u
 1. Install TaskFlowAI: `pip install taskflowai`
 2. Import necessary components:
    ```python
-   from taskflowai import Task, Agent, OllamaModels
+   from taskflowai import Task, Agent, OllamaModels, WebTools
 
    researcher_agent = Agent(
       role="web researcher",
