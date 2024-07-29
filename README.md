@@ -28,17 +28,8 @@ The framework is built around several core components. Tasks serve as discrete u
       llm=OllamaModels.llama3,
       tools={WebTools.serper_search}
    )
+```
 
-def web_research_task(user_input):
-   return Task.create(
-      agent=researcher_agent,
-      instruction=f"use web search tool to find and summarize information on '{user_input}'"
-   )
-
-user_input = input("Enter your search query: ")
-web_research_task(user_input)
-
-   ```
 3. Create your workflows by defining tasks, agents, and tools
 
 ## Examples
