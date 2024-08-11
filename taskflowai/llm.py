@@ -13,13 +13,14 @@ load_dotenv()
 verbosity = False
 debug = False
 
-def set_verbosity(value: Union[str, bool]):
+def set_verbosity(value: Union[str, bool, int]):
     global verbosity, debug
     if isinstance(value, str):
-        if value.lower() == 'debug':
+        value = value.lower()
+        if value in ['debug', '2']:
             verbosity = True
             debug = True
-        elif value.lower() == 'true':
+        elif value in ['true', '1']:
             verbosity = True
             debug = False
         else:
@@ -28,8 +29,18 @@ def set_verbosity(value: Union[str, bool]):
     elif isinstance(value, bool):
         verbosity = value
         debug = False
+    elif isinstance(value, int):
+        if value == 2:
+            verbosity = True
+            debug = True
+        elif value == 1:
+            verbosity = True
+            debug = False
+        else:
+            verbosity = False
+            debug = False
     else:
-        raise ValueError("set_verbosity expects a string or boolean value")
+        raise ValueError("set_verbosity expects a string, boolean, or integer value")
 
 
 # Define color codes

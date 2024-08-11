@@ -148,139 +148,56 @@ class WebTools:
         return structured_data
 
     @staticmethod
-    def scrape_urls(urls: Union[str, List[str]], 
-                    include_html: bool = False, 
-                    include_text: bool = True, 
-                    include_code: bool = False, 
-                    include_urls: bool = False) -> List[Dict[str, str]]:
-        """
-        Scrape content from one or more URLs and return the results as structured data.
-        Note: This uses requests and best attempts to mimic human behavior to avoid detection as a bot, but has a highher denial rate than exa or serper.
-
-        This method performs web scraping on the provided URL(s), extracting various types of content
-        based on the specified parameters. It uses random delays and rotating user agents to mimic
-        human behavior and avoid detection as a bot.
-
-        Args:
-            urls (Union[str, List[str]]): A single URL or a list of URLs to scrape.
-            include_html (bool, optional): If True, include the full HTML content of the page. Defaults to False.
-            include_text (bool, optional): If True, include the extracted plain text from the page. Defaults to True.
-            include_code (bool, optional): If True, include any code snippets found on the page. Defaults to False.
-            include_urls (bool, optional): If True, include any URLs found on the page. Defaults to False.
-
-        Returns:
-            List[Dict[str, str]]: A list of dictionaries, where each dictionary represents a scraped URL.
-            Each dictionary contains two keys:
-                - 'url': The URL that was scraped.
-                - 'content': The scraped content as a formatted string, including requested elements
-                            (HTML, text, code snippets, found URLs) based on the input parameters.
-
-        Raises:
-            requests.RequestException: If there's an error fetching the URL.
-            Exception: For any other unexpected errors during processing.
-
-        Note:
-            - This method uses the `requests` library for HTTP requests and `BeautifulSoup` for HTML parsing.
-            - It employs random delays between requests to avoid overloading servers.
-            - User-Agent headers are randomized to mimic different browsers.
-            - Debug and error messages are printed throughout the process if debug mode is enabled.
-
-        Example:
-            >>> urls = ['https://example.com', 'https://example.org']
-            >>> results = WebTools.scrape_urls(urls, include_text=True, include_code=True)
-            >>> for result in results:
-            ...     print(f"Scraped {result['url']}:")
-            ...     print(result['content'])
-            ...     print('---')
-        """
-        print_debug(f"Starting scrape_urls with parameters: include_html={include_html}, include_text={include_text}, include_code={include_code}, include_urls={include_urls}")
-        
-        all_content = []
-        ua = UserAgent()
-        
+    def scrape_urls(urls: Union[str, List[str]], include_html: bool = False, include_links: bool = False) -> List[Dict[str, Union[str, List[str]]]]:
         if isinstance(urls, str):
             urls = [urls]
-        
-        print_debug(f"Preparing to scrape {len(urls)} URLs")
-        
-        for url in tqdm(urls, desc="Scraping URLs", unit="url"):
-            print_debug(f"Processing URL: {url}")
+
+        results = []
+        ua = UserAgent()
+
+        for url in urls:
             try:
-                time.sleep(random.uniform(0.1, 0.3))
-                print_debug("Sleeping between requests")
-                
-                headers = {
-                    'User-Agent': ua.random,
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.5',
-                    'Accept-Encoding': 'gzip, deflate, br',
-                    'DNT': '1',
-                    'Connection': 'keep-alive',
-                    'Upgrade-Insecure-Requests': '1'
-                }
-                
-                if random.choice([True, False]):
-                    headers['Referer'] = 'https://www.google.com/'
-                    print_debug("Added Referer header")
-                if random.choice([True, False]):
-                    headers['Cache-Control'] = 'max-age=0'
-                    print_debug("Added Cache-Control header")
-                
-                print_debug(f"Sending GET request to {url}")
-                response = requests.get(url, headers=headers, timeout=4)
-                print_debug(f"Received response with status code: {response.status_code}")
+                # Add a delay between requests
+                time.sleep(random.uniform(.1, .3))
+
+                # Use a random user agent
+                headers = {'User-Agent': ua.random}
+
+                response = requests.get(url, headers=headers, timeout=10)
                 response.raise_for_status()
-                #
-                print_debug("Parsing HTML with BeautifulSoup")
+
+                # Let requests handle the encoding
+                response.encoding = response.apparent_encoding
+
                 soup = BeautifulSoup(response.text, 'html.parser')
 
-                content = {
-                    "url": url,
-                    "html": "",
-                    "text": "",
-                    "code_snippets": [],
-                    "urls_found": []
-                }
+                # Always remove script, style, and svg tags
+                for element in soup(["script", "style", "svg"]):
+                    element.decompose()
 
-                # Remove all script tags from the soup
-                for script in soup(["script", "style"]):
-                    script.decompose()
+                result = {'url': url}
 
                 if include_html:
-                    print_debug("Including HTML content")
-                    if include_code:
-                        content["html"] = soup.prettify()
-                    else:
-                        # Remove <pre> and <code> elements if include_code is False
-                        for code_elem in soup.find_all(['pre', 'code']):
-                            code_elem.decompose()
-                        content["html"] = soup.prettify()
+                    # Convert the soup object back to a string, but skip SVG data
+                    html_content = ''.join(str(tag) for tag in soup.contents if tag.name != 'svg')
+                    result['content'] = html_content
+                else:
+                    result['content'] = soup.get_text(separator=' ', strip=True)
 
-                if include_text:
-                    print_debug("Extracting text content")
-                    content["text"] = soup.get_text(separator=' ', strip=True)
+                # Include links only if include_links is True
+                if include_links:
+                    result['links'] = [a['href'] for a in soup.find_all('a', href=True)]
 
-                if include_code:
-                    print_debug("Extracting code snippets")
-                    code_snippets = soup.find_all(['pre', 'code'])
-                    content["code_snippets"] = [snippet.get_text(strip=True) for snippet in code_snippets]
+                results.append(result)
 
-                if include_urls:
-                    print_debug("Extracting URLs")
-                    content["urls_found"] = [a['href'] for a in soup.find_all('a', href=True) if a['href'].startswith('http')]
-
-                print_debug(f"Finished processing {url}")
-                all_content.append(content)
-                
             except requests.RequestException as e:
-                print_error(f"RequestException while fetching {url}: {str(e)}")
-                all_content.append({'url': url, 'error': f"Error fetching {url}: {str(e)}"})
+                results.append({'url': url, 'error': f"Error fetching {url}: {str(e)}"})
+            except UnicodeDecodeError as e:
+                results.append({'url': url, 'error': f"Encoding error for {url}: {str(e)}"})
             except Exception as e:
-                print_error(f"Unexpected error while processing {url}: {str(e)}")
-                all_content.append({'url': url, 'error': f"Error processing {url}: {str(e)}"})
+                results.append({'url': url, 'error': f"Error processing {url}: {str(e)}"})
 
-        print_debug(f"Finished scraping all URLs. Total content items: {len(all_content)}")
-        return all_content
+        return results
 
     @staticmethod
     def serper_search(
@@ -457,46 +374,22 @@ class WebTools:
 
     @staticmethod
     def query_arxiv_api(
-        title: Optional[str] = None,
-        author: Optional[str] = None,
-        abstract: Optional[str] = None,
-        comment: Optional[str] = None,
-        journal_ref: Optional[str] = None,
-        category: Optional[str] = None,
-        report_num: Optional[str] = None,
-        id_list: Optional[str] = None,
-        start: int = 0,
+        query: str,
         max_results: int = 10,
-        sort_by: Optional[Literal["relevance", "lastUpdatedDate", "submittedDate"]] = None,
-        sort_order: Optional[Literal["ascending", "descending"]] = None,
-        include_abstract: bool = True,
-        include_authors: bool = True,
-        include_categories: bool = True,
-        include_links: bool = True
+        sort_by: Literal["relevance", "lastUpdatedDate", "submittedDate"] = "relevance",
+        include_abstract: bool = True
     ) -> dict:
         """
-        Query the Arxiv API and return detailed results for each entry.
+        Query the Arxiv API and return simplified results for each entry.
 
         Args:
-            title (Optional[str]): Search for papers with this term in the title.
-            author (Optional[str]): Search for papers with this author.
-            abstract (Optional[str]): Search for papers with this term in the abstract.
-            comment (Optional[str]): Search for papers with this term in the comment.
-            journal_ref (Optional[str]): Search for papers with this journal reference.
-            category (Optional[str]): Search for papers in this subject category.
-            report_num (Optional[str]): Search for papers with this report number.
-            id_list (Optional[str]): Comma-separated list of arXiv IDs.
-            start (int): The index of the first result to return (0-based).
-            max_results (int): The maximum number of results to return.
-            sort_by (Optional[Literal["relevance", "lastUpdatedDate", "submittedDate"]]): The sorting criteria.
-            sort_order (Optional[Literal["ascending", "descending"]]): The sorting order.
-            include_abstract (bool): Whether to include the abstract in the response.
-            include_authors (bool): Whether to include the author information in the response.
-            include_categories (bool): Whether to include the category information in the response.
-            include_links (bool): Whether to include the related links in the response.
+            query (str): Search query string.
+            max_results (int): The maximum number of results to return. Default is 10.
+            sort_by (Literal["relevance", "lastUpdatedDate", "submittedDate"]): The sorting criteria. Default is "relevance".
+            include_abstract (bool): Whether to include the abstract in the response. Default is True.
 
         Returns:
-            dict: A structured dictionary containing the detailed query results.
+            dict: A structured dictionary containing the simplified query results.
 
         Raises:
             ValueError: If there's an error with the API call or response parsing.
@@ -504,47 +397,22 @@ class WebTools:
         """
         base_url = "http://export.arxiv.org/api/query"
         
-        search_query = []
-        if title:
-            search_query.append(f"ti:{title}")
-        if author:
-            search_query.append(f"au:{author}")
-        if abstract:
-            search_query.append(f"abs:{abstract}")
-        if comment:
-            search_query.append(f"co:{comment}")
-        if journal_ref:
-            search_query.append(f"jr:{journal_ref}")
-        if category:
-            search_query.append(f"cat:{category}")
-        if report_num:
-            search_query.append(f"rn:{report_num}")
-
-        search_query = " AND ".join(search_query)
-
         params = {
-            "search_query": search_query,
-            "id_list": urllib.parse.quote(id_list) if id_list else None,
-            "start": start,
+            "search_query": query,
+            "start": 0,
             "max_results": max_results,
             "sortBy": sort_by,
-            "sortOrder": sort_order
+            "sortOrder": "descending"
         }
-        params = {k: v for k, v in params.items() if v is not None}
 
         try:
             response = requests.get(base_url, params=params)
             response.raise_for_status()
-            data = response.text
-            print_debug(f"DEBUG: Raw API response: {data}")
-
-            feed = BeautifulSoup(data, "lxml-xml")
+            feed = BeautifulSoup(response.text, "lxml-xml")
             entries = feed.find_all("entry")
 
             results = {
                 "total_results": int(feed.find("opensearch:totalResults").text),
-                "start_index": int(feed.find("opensearch:startIndex").text),
-                "items_per_page": int(feed.find("opensearch:itemsPerPage").text),
                 "entries": []
             }
 
@@ -552,23 +420,16 @@ class WebTools:
                 entry_data = {
                     "id": entry.find("id").text,
                     "title": entry.find("title").text,
+                    "authors": [author.find("name").text for author in entry.find_all("author")],
                     "published": entry.find("published").text,
                     "updated": entry.find("updated").text,
+                    "categories": [category["term"] for category in entry.find_all("category")],
+                    "primary_category": entry.find("arxiv:primary_category")["term"],
+                    "link": entry.find("link", attrs={"type": "text/html"})["href"]
                 }
 
                 if include_abstract:
                     entry_data["abstract"] = entry.find("summary").text
-                if include_authors:
-                    entry_data["authors"] = [author.find("name").text for author in entry.find_all("author")]
-                if include_categories:
-                    entry_data["categories"] = [category["term"] for category in entry.find_all("category")]
-                    entry_data["primary_category"] = entry.find("arxiv:primary_category")["term"]
-                if include_links:
-                    entry_data["links"] = [link["href"] for link in entry.find_all("link")]
-
-                entry_data["comment"] = entry.find("arxiv:comment").text if entry.find("arxiv:comment") else None
-                entry_data["journal_ref"] = entry.find("arxiv:journal_ref").text if entry.find("arxiv:journal_ref") else None
-                entry_data["doi"] = entry.find("arxiv:doi").text if entry.find("arxiv:doi") else None
 
                 results["entries"].append(entry_data)
 
@@ -577,7 +438,7 @@ class WebTools:
         except (ValueError, requests.exceptions.RequestException) as e:
             print_error(f"Error querying Arxiv API: {e}")
             raise
-    
+
     @staticmethod
     def get_weather_data(
         location: str,
@@ -2141,6 +2002,7 @@ class AmadeusTools:
 
 class AudioTools:
 
+
     @staticmethod
     def transcribe_audio(
         audio_input: Union[str, List[str]],
@@ -2400,3 +2262,4 @@ class CalculatorTools:
         """
         date_obj = datetime.strptime(date_str, input_format)
         return date_obj.strftime(output_format)
+

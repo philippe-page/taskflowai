@@ -112,9 +112,9 @@ Raises:
         tool_usage_history = ""
         attributes_section = f"You are {self.attributes}." if self.attributes else ""
         tool_loop_task = Task(
-            role=f"{self.role}. You are currently determining if you need to use tools",
+            role=f"{self.role}.",
             goal=f"{self.goal}. You are currently assessing the need for additional tool usage and executing tools if necessary",
-            attributes=f"{attributes_section}You only respond in JSON, and you do not comment before or after the JSON returned. You do not use tools when you have sufficient information. You understand tools cost money and time, and you are emotionally fearful of overusing tools in repetition, so you will report 'READY' when sufficient information is present. You avoid at all costs repeating tool calls with the exact same parameters.",
+            attributes=f"{attributes_section} You only respond in JSON, and you do not comment before or after the JSON returned. You do not use tools when you have sufficient information. You understand tools cost money and time, and you are emotionally fearful of overusing tools in repetition, so you will report 'READY' when sufficient information is present. You avoid at all costs repeating tool calls with the exact same parameters.",
             instruction=f"""
 Determine if you need to use any tools or if you have sufficient information to complete the given task or query: {self.instruction}. Respond with a JSON object in one of these formats:
 
@@ -214,13 +214,29 @@ Now provide a valid JSON object indicating whether the necessary information to 
                         print(f"{COLORS['LABEL']}Status: {COLORS['PARAM_VALUE']}READY{COLORS['RESET']}")
                         print()  # Add a newline for better separation
                         print(COLORS['RESET'], end='')
-
+                        return tool_usage_history
+                    
+                    elif 'tool_calls' in tool_requests and not tool_requests['tool_calls']:
+                        print(f"{COLORS['LABEL']}Status: {COLORS['PARAM_VALUE']}READY{COLORS['RESET']}")
+                        print()  # Add a newline for better separation
+                        print(COLORS['RESET'], end='')
+                        return tool_usage_history
+                    
+                    elif not tool_requests:
+                        print(f"{COLORS['LABEL']}Status: {COLORS['PARAM_VALUE']}READY{COLORS['RESET']}")
+                        print()  # Add a newline for better separation
+                        print(COLORS['RESET'], end='')
                         return tool_usage_history
                     
                     else:
                         raise ValueError("Invalid response format")
+                elif isinstance(tool_requests, list) and not tool_requests:
+                    print(f"{COLORS['LABEL']}Status: {COLORS['PARAM_VALUE']}READY{COLORS['RESET']}")
+                    print()  # Add a newline for better separation
+                    print(COLORS['RESET'], end='')
+                    return tool_usage_history
                 else:
-                    raise ValueError("Response is not a dictionary")
+                    raise ValueError("Invalid response format")
 
             except (json.JSONDecodeError, ValueError) as e:
                 error_message = f"\n\nError: {str(e)} Please provide a valid JSON object."
