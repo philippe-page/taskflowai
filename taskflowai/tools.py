@@ -30,7 +30,7 @@ def print_error(message):
 
 class WebTools:
     @staticmethod
-    def exa_search(queries: Union[str, List[str]], num_results: int = 10, search_type: str = "neural", num_sentences: int = 3, highlights_per_url: int = 3) -> dict:
+    def exa_search(queries: Union[str, List[str]], num_results: int = 10, search_type: str = "neural", num_sentences: int = 5, highlights_per_url: int = 3) -> dict:
         """
         Searches the internet using the Exa search engine and returns a structured response.
 
@@ -147,10 +147,35 @@ class WebTools:
 
         return structured_data
 
+
     @staticmethod
-    def scrape_urls(urls: Union[str, List[str]], include_html: bool = False, include_links: bool = False) -> List[Dict[str, Union[str, List[str]]]]:
+    def scrape_urls(urls: Union[str, List[str]], include_html: bool = False, include_links: bool = False) -> List[Dict[str, Any]]:
+        """
+        Scrape content from one or more URLs.
+
+        Args:
+            urls: A single URL string or a list of URL strings to scrape.
+            include_html: If True, includes the HTML content in the result. Default is False.
+            include_links: If True, includes all links found in the page. Default is False.
+
+        Returns:
+            A list of dictionaries containing scraped data for each URL. Each dictionary includes:
+            - 'url': The scraped URL
+            - 'content': Scraped content (text or HTML)
+            - 'links': List of links (if include_links is True)
+            - 'error': Error message (if an exception occurred)
+
+        Raises:
+            ValueError: If include_html or include_links are not boolean values.
+
+        Note:
+            Uses random delays and user agents. Handles common exceptions without breaking.
+        """
         if isinstance(urls, str):
             urls = [urls]
+        
+        if not isinstance(include_html, bool) or not isinstance(include_links, bool):
+            raise ValueError("include_html and include_links must be boolean values")
 
         results = []
         ua = UserAgent()
@@ -175,7 +200,7 @@ class WebTools:
                 for element in soup(["script", "style", "svg"]):
                     element.decompose()
 
-                result = {'url': url}
+                result: Dict[str, Any] = {'url': url}
 
                 if include_html:
                     # Convert the soup object back to a string, but skip SVG data
@@ -194,7 +219,7 @@ class WebTools:
                 results.append({'url': url, 'error': f"Error fetching {url}: {str(e)}"})
             except UnicodeDecodeError as e:
                 results.append({'url': url, 'error': f"Encoding error for {url}: {str(e)}"})
-            except Exception as e:
+            except (AttributeError, ValueError, TypeError) as e:
                 results.append({'url': url, 'error': f"Error processing {url}: {str(e)}"})
 
         return results
@@ -1357,13 +1382,26 @@ class WikipediaTools:
                     "thumbnail": page_data.get("thumbnail", {}).get("source")
                 }
                 image_results.append(image_info)
-            return image_results
+
+            # New code to format the output
+            formatted_results = []
+            separator = "-" * 30  # Create a separator line
+            for i, image in enumerate(image_results, 1):
+                formatted_image = f"\nImage {i}:\n"
+                formatted_image += f"  Title: {image['title']}\n"
+                formatted_image += f"  URL: {image['url']}\n"
+                formatted_image += f"  Thumbnail: {image['thumbnail']}\n"
+                formatted_image += f"{separator}"
+                formatted_results.append(formatted_image)
+
+            return "".join(formatted_results)
+
         except requests.exceptions.RequestException as e:
             print_error(f"Error searching images: {e}")
-            return []
+            return "Error occurred while searching for images."
         except (KeyError, ValueError) as e:
             print_error(f"Error parsing response: {e}")
-            return []
+            return "Error occurred while parsing the response."
 
 
 class GitHubTools:
@@ -1825,8 +1863,8 @@ class AmadeusTools:
         Search for flight offers using Amadeus API.
 
         Args:
-            origin (str): Origin airport or city code (e.g., "NYC")
-            destination (str): Destination airport or city code (e.g., "LON")
+            origin (str): Origin airport (e.g., "YYZ")
+            destination (str): Destination airport (e.g., "CDG")
             departure_date (str): Departure date in YYYY-MM-DD format
             return_date (Optional[str]): Return date in YYYY-MM-DD format for round trips
             adults (int): Number of adult travelers

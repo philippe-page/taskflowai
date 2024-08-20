@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Callable, Optional, Union, Dict, List, Any, Set
+from typing import Callable, Optional, Union, Dict, List, Any, Set, Tuple
 from datetime import datetime
 import json
 
@@ -27,7 +27,6 @@ class Task(BaseModel):
     temperature: Optional[float] = Field(default=0.7, description="Temperature setting for the language model")
     max_tokens: Optional[int] = Field(default=4000, description="Maximum number of tokens for the language model response")
 
-
     @classmethod
     def create(cls, agent: Optional[Any] = None, role: Optional[str] = None, 
                 goal: Optional[str] = None, attributes: Optional[str] = None, 
@@ -35,65 +34,84 @@ class Task(BaseModel):
                 llm: Optional[Callable] = None, tools: Optional[Set[Callable]] = None, 
                 image_data: Optional[Union[List[str], str]] = None,
                 temperature: Optional[float] = None,
-                max_tokens: Optional[int] = None):
+                max_tokens: Optional[int] = None,
+                callback: Optional[Callable[[Dict[str, Any]], None]] = None) -> Union[str, Exception]:
         """
-Create and execute a Task instance. 
-This method works with either an Agent object or direct task parameters.
+        Create and execute a task with flexible parameter assignment.
 
-If an Agent object is provided, its properties (role, goal, attributes, llm) will be used.
-Otherwise, the method expects individual parameters to be provided.
+        This method allows for two primary ways of task creation:
+        1. By assigning an agent, which provides default values for most parameters.
+        2. By directly specifying individual parameters.
 
-Args:
-    agent (Optional[Agent]): An assigned agent object (with its own role, goal, attributes, and llm properties)
-        role (str): The role or type of agent performing the task (unnecessary if agent is provided)
-        goal (str): The objective or purpose of the task (unnecessary if agent is provided)
-        attributes (Optional[str]): Additional characteristics of the agent (unnecessary if agent is provided)
-        llm (Callable): The language model function to be called (unnecessary if agent is provided)
-    context (Optional[str]): Background information, additional context, or setting for the task
-    instruction (str): Specific direction for completing the task
-    tools (Optional[Set[Callable]]): Set of tool functions (e.g. {WebTools.scrape_url, WebTools.search_tool})
-    image_data (Optional[Union[List[str], str]]): Optional base64-encoded image data for image-based tasks
-    temperature (float): Temperature setting for the language model
-    max_tokens (int): Maximum number of tokens for the language model response
+        The core components of a task are:
+        - agent: An optional agent object that provides default values.
+        - context: Background information for the task.
+        - instruction: Specific directions for the task.
 
-Returns:
-    str: The result of executing the created Task.
+        Additional parameters can be specified to override agent settings or when no agent is provided:
+        - role: The role or type of agent performing the task.
+        - goal: The objective of the task.
+        - attributes: Additional characteristics of the agent or expected responses.
+        - llm: The language model function to be used.
+        - tools: A set of tool functions available for the task.
+        - image_data: Optional image data for image-based tasks.
+        - temperature: Temperature setting for the language model.
+        - max_tokens: Maximum number of tokens for the language model response.
+        - callback: An optional function to handle task execution updates.
 
-Raises:
-    ValueError: If neither agent nor required task parameters are provided.
+        Returns:
+            Union[str, Exception]: The result of task execution or an Exception if an error occurs.
         """
-        if agent:
-            task_data = {
-                "agent": agent,
-                "role": agent.role,
-                "goal": agent.goal,
-                "attributes": agent.attributes,
-                "context": context,
-                "instruction": instruction,
-                "llm": agent.llm,
-                "tools": agent.tools or tools,  # Use agent's tools if available, otherwise use provided tools
-                "image_data": image_data,
-                "temperature": getattr(agent, 'temperature', temperature or 0.7),  # Use 0.7 as default
-                "max_tokens": getattr(agent, 'max_tokens', max_tokens or 4000)  # Use 4000 as default
-            }
-        elif role and goal and instruction and llm:
-            task_data = {
-                "role": role,
-                "goal": goal,
-                "attributes": attributes,
-                "context": context,
-                "instruction": instruction,
-                "llm": llm,
-                "tools": tools,
-                "image_data": image_data,
-                "temperature": temperature or 0.7,  # Use 0.7 as default
-                "max_tokens": max_tokens or 4000  # Use 4000 as default
-            }
+        try:
+            task = cls(
+                role=role or (agent.role if agent else None),
+                goal=goal or (agent.goal if agent else None),
+                attributes=attributes or (agent.attributes if agent else None),
+                context=context,
+                instruction=instruction,
+                llm=llm or (agent.llm if agent else None),
+                tools=tools or (agent.tools if agent else None),
+                image_data=image_data,
+                temperature=temperature or (agent.temperature if agent else 0.7),
+                max_tokens=max_tokens or (agent.max_tokens if agent else 4000),
+                agent=agent
+            )
+
+            return task.execute(callback)
+        except Exception as e:
+            if callback:
+                callback({"type": "error", "content": str(e)})
+            return e
+
+    def execute(self, callback: Optional[Callable[[Dict[str, Any]], None]] = None) -> Union[str, Exception]:
+        tools_to_use = self.agent.tools if self.agent and self.agent.tools else self.tools
+        if tools_to_use:
+            tool_usage_history = self._execute_tool_loop(callback)
+            if isinstance(tool_usage_history, Exception):
+                return tool_usage_history
+            return self._execute_final_task(tool_usage_history, callback)
         else:
-            raise ValueError("Either an agent or all required task parameters (role, goal, instruction, llm) must be provided.")
+            llm_result = self.llm(self.system_prompt(), self.user_prompt(), image_data=self.image_data, temperature=self.temperature, max_tokens=self.max_tokens)
+            
+            if isinstance(llm_result, tuple) and len(llm_result) == 2:
+                response, error = llm_result
+            elif isinstance(llm_result, dict):
+                response = json.dumps(llm_result)
+                error = None
+            elif isinstance(llm_result, str):
+                response = llm_result
+                error = None
+            else:
+                error = ValueError(f"Unexpected result type from LLM: {type(llm_result)}")
+                response = ""
 
-        task = cls(**task_data)
-        return task.execute()
+            if error:
+                if callback:
+                    callback({"type": "error", "content": str(error)})
+                return error
+            if callback:
+                callback({"type": "final_response", "content": response})
+            return response
 
     def system_prompt(self) -> str:
         attributes = f" {self.attributes}" if self.attributes else ""
@@ -107,12 +125,12 @@ Raises:
         prompt += self.instruction
         return prompt
 
-    def _execute_tool_loop(self) -> str:
+    def _execute_tool_loop(self, callback: Optional[Callable[[Dict[str, Any]], None]] = None) -> Union[str, Exception]:
         tool_descriptions = "You have access to the following tools:\n" + "\n".join([f"- {func.__name__}: {func.__doc__}" for func in self.tools]).rstrip()
         tool_usage_history = ""
         attributes_section = f"You are {self.attributes}." if self.attributes else ""
         tool_loop_task = Task(
-            role=f"{self.role}.",
+            role=f"{self.role}",
             goal=f"{self.goal}. You are currently assessing the need for additional tool usage and executing tools if necessary",
             attributes=f"{attributes_section} You only respond in JSON, and you do not comment before or after the JSON returned. You do not use tools when you have sufficient information. You understand tools cost money and time, and you are emotionally fearful of overusing tools in repetition, so you will report 'READY' when sufficient information is present. You avoid at all costs repeating tool calls with the exact same parameters.",
             instruction=f"""
@@ -153,105 +171,137 @@ Now provide a valid JSON object indicating whether the necessary information to 
         max_iterations = 5
         tool_usage_history = ""
         for _ in range(max_iterations):
-            response = tool_loop_task.llm(
-                tool_loop_task.system_prompt(),
-                tool_loop_task.user_prompt()
-            )
-            
             try:
-                start = response.find('{')
-                end = response.rfind('}') + 1
-                if start != -1 and end != -1:
-                    json_str = response[start:end]
-                    tool_requests = json.loads(json_str)
-                else:
-                    raise json.JSONDecodeError("No JSON object found", response, 0)
+                llm_result = tool_loop_task.llm(
+                    tool_loop_task.system_prompt(),
+                    tool_loop_task.user_prompt()
+                )
                 
-                if isinstance(tool_requests, dict):
-                    if 'tool_calls' in tool_requests:
-                        tool_calls = tool_requests['tool_calls']
-                        for tool_request in tool_calls:
-                            tool_name = tool_request["tool"].lower() # Convert to lowercase
-                            tool_params = tool_request.get("params", {})
+                if isinstance(llm_result, tuple) and len(llm_result) == 2:
+                    response, error = llm_result
+                elif isinstance(llm_result, dict):
+                    response = json.dumps(llm_result)
+                    error = None
+                elif isinstance(llm_result, str):
+                    response = llm_result
+                    error = None
+                else:
+                    raise ValueError(f"Unexpected result type from LLM: {type(llm_result)}")
 
-                            print(f"{COLORS['LABEL']}Tool Use: {COLORS['TOOL_NAME']}{tool_name}{COLORS['RESET']}")
-                            print(f"{COLORS['LABEL']}Parameters:")
-                            for key, value in tool_params.items():
-                                print(f"  {COLORS['LABEL']}{key}: {COLORS['PARAM_VALUE']}{value}{COLORS['RESET']}")
-                            print()  # Add a newline for better separation
-                            print(COLORS['RESET'], end='')
-
-                            # Create a dictionary of tools with function names as keys
-                            tools_dict = {func.__name__.lower(): func for func in self.tools}
+                if error:
+                    if callback:
+                        callback({"type": "error", "content": str(error)})
+                    return error
+                
+                try:
+                    start = response.find('{')
+                    end = response.rfind('}') + 1
+                    if start != -1 and end != -1:
+                        json_str = response[start:end]
+                        tool_requests = json.loads(json_str)
+                    else:
+                        raise json.JSONDecodeError("No JSON object found", response, 0)
+                    
+                    if isinstance(tool_requests, dict):
+                        if 'tool_calls' in tool_requests:
+                            tool_calls = tool_requests['tool_calls']
+                            if not tool_calls:  # Empty tool_calls array
+                                print(f"{COLORS['LABEL']}Status: {COLORS['PARAM_VALUE']}READY{COLORS['RESET']}")
+                                print() 
+                                print(COLORS['RESET'], end='')
+                                return tool_usage_history
                             
-                            if tool_name in tools_dict:
-                                try:
-                                    result = tools_dict[tool_name](**tool_params)
-                                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                    tool_result = f"\n\nAt [{timestamp}] you used the tool: '{tool_name}' with the parameters: {json.dumps(tool_params, indent=2)}\nThe following is the result of the tool's use:\n{result}"
+                            for tool_request in tool_calls:
+                                tool_name = tool_request["tool"].lower()
+                                tool_params = tool_request.get("params", {})
+
+                                print(f"{COLORS['LABEL']}Tool Use: {COLORS['TOOL_NAME']}{tool_name}{COLORS['RESET']}")
+                                print(f"{COLORS['LABEL']}Parameters:")
+                                for key, value in tool_params.items():
+                                    print(f"  {COLORS['LABEL']}{key}: {COLORS['PARAM_VALUE']}{value}{COLORS['RESET']}")
+                                print() 
+                                print(COLORS['RESET'], end='')
+
+                                # Create a dictionary of tools with function names as keys
+                                tools_dict = {func.__name__.lower(): func for func in self.tools}
+                                
+                                if tool_name in tools_dict:
+                                    try:
+                                        result = tools_dict[tool_name](**tool_params)
+                                        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                        tool_result = f"\n\nAt [{timestamp}] you used the tool: '{tool_name}' with the parameters: {json.dumps(tool_params, indent=2)}\nThe following is the result of the tool's use:\n{result}"
+                                    except Exception as e:
+                                        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                        tool_result = f"\n\nAt [{timestamp}] you used the tool: '{tool_name}' with the parameters: {json.dumps(tool_params, indent=2)}\nAn error occurred during the tool's use: {str(e)}"
+                                        print(f"{COLORS['WARNING']}[{timestamp}] Error executing tool '{tool_name}': {str(e)}{COLORS['RESET']}")
+                                    
                                     tool_usage_history += tool_result
-                                    tool_loop_task.instruction += tool_result  # Update instruction instead of tool_usage_history
+                                    tool_loop_task.instruction += tool_result
 
                                     # Print a snippet of the result
                                     result_snippet = str(result)[:400] + "..." if len(str(result)) > 400 else str(result)
                                     print(f"{COLORS['LABEL']}Result: {COLORS['RESULT_VALUE']}{result_snippet}{COLORS['RESET']}")
-                                    print()  # Add a newline for better separation
+                                    print()  # Add a newline for  separation
 
-                                except Exception as e:
+                                    if callback:
+                                        callback({
+                                            "type": "tool_call",
+                                            "tool": tool_name,
+                                            "params": tool_params,
+                                            "result": result
+                                        })
+                                else:
                                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                    error_message = f"\n\n[{timestamp}] Error executing tool '{tool_name}': {str(e)}"
-                                    tool_usage_history += error_message
-                                    tool_loop_task.instruction += error_message
-                                    print(f"{COLORS['WARNING']}[{timestamp}] Error executing tool '{tool_name}': {str(e)}{COLORS['RESET']}")
-                            else:
-                                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                error_message = f"\n\n[{timestamp}] Error: Tool '{tool_name}' not found."
-                                tool_usage_history += error_message
-                                tool_loop_task.instruction += error_message
-                                print(f"{COLORS['WARNING']}[{timestamp}] Tool Error: Tool '{tool_name}' not found.{COLORS['RESET']}")
+                                    tool_result = f"\n\nAt [{timestamp}] you attempted to use the tool: '{tool_name}' with the parameters: {json.dumps(tool_params, indent=2)}\nError: Tool '{tool_name}' not found."
+                                    tool_usage_history += tool_result
+                                    tool_loop_task.instruction += tool_result
+                                    print(f"{COLORS['WARNING']}[{timestamp}] Tool Error: Tool '{tool_name}' not found.{COLORS['RESET']}")
 
-                    elif 'status' in tool_requests and tool_requests['status'] == 'READY':
+                        elif 'status' in tool_requests and tool_requests['status'] == 'READY':
+                            print(f"{COLORS['LABEL']}Status: {COLORS['PARAM_VALUE']}READY{COLORS['RESET']}")
+                            print() 
+                            print(COLORS['RESET'], end='')
+                            return tool_usage_history
+                        
+                        elif not tool_requests:
+                            print(f"{COLORS['LABEL']}Status: {COLORS['PARAM_VALUE']}READY{COLORS['RESET']}")
+                            print()
+                            print(COLORS['RESET'], end='')
+                            return tool_usage_history
+                        
+                        else:
+                            raise ValueError("Invalid response format")
+                    elif isinstance(tool_requests, list) and not tool_requests:
                         print(f"{COLORS['LABEL']}Status: {COLORS['PARAM_VALUE']}READY{COLORS['RESET']}")
-                        print()  # Add a newline for better separation
+                        print()
                         print(COLORS['RESET'], end='')
                         return tool_usage_history
-                    
-                    elif 'tool_calls' in tool_requests and not tool_requests['tool_calls']:
-                        print(f"{COLORS['LABEL']}Status: {COLORS['PARAM_VALUE']}READY{COLORS['RESET']}")
-                        print()  # Add a newline for better separation
-                        print(COLORS['RESET'], end='')
-                        return tool_usage_history
-                    
-                    elif not tool_requests:
-                        print(f"{COLORS['LABEL']}Status: {COLORS['PARAM_VALUE']}READY{COLORS['RESET']}")
-                        print()  # Add a newline for better separation
-                        print(COLORS['RESET'], end='')
-                        return tool_usage_history
-                    
                     else:
                         raise ValueError("Invalid response format")
-                elif isinstance(tool_requests, list) and not tool_requests:
-                    print(f"{COLORS['LABEL']}Status: {COLORS['PARAM_VALUE']}READY{COLORS['RESET']}")
-                    print()  # Add a newline for better separation
-                    print(COLORS['RESET'], end='')
-                    return tool_usage_history
-                else:
-                    raise ValueError("Invalid response format")
 
-            except (json.JSONDecodeError, ValueError) as e:
-                error_message = f"\n\nError: {str(e)} Please provide a valid JSON object."
+                except (json.JSONDecodeError, ValueError) as e:
+                    error_message = f"\n\nError: {str(e)} Please provide a valid JSON object."
+                    tool_usage_history += error_message
+                    tool_loop_task.instruction += error_message
+                    print(f"{COLORS['WARNING']}Tool Error: {str(e)} Please provide a valid JSON object.{COLORS['RESET']}")
+
+            except Exception as e:
+                error_message = f"\n\nError during tool loop execution: {str(e)}"
                 tool_usage_history += error_message
                 tool_loop_task.instruction += error_message
-                print(f"{COLORS['WARNING']}Tool Error: {str(e)} Please provide a valid JSON object.{COLORS['RESET']}")
+                print(f"{COLORS['ERROR']}Error during tool loop execution: {str(e)}{COLORS['RESET']}")
+                if callback:
+                    callback({"type": "error", "content": str(e)})
+                return e
 
         warning_message = "\n\nWarning: Maximum iterations of tool use loop reached without completion."
         print(f"{COLORS['ERROR']}Warning: Maximum iterations of tool use loop reached without completion.{COLORS['RESET']}")
         tool_usage_history += warning_message
         return tool_usage_history
 
-    def _execute_final_task(self, tool_usage_history: str) -> str:
+    def _execute_final_task(self, tool_usage_history: str, callback: Optional[Callable[[Dict[str, Any]], None]] = None) -> Union[str, Exception]:
         if tool_usage_history:
-            final_context = f"You have already performed the following actions:\n{tool_usage_history}\n\nDon't describe the process as if it's happening now, focus on addressing the instruction rather than discussing the tool usage itself.\n\n----------{self.context or ''}"
+            final_context = f"You've just performed the following actions:\n{tool_usage_history}\n\nNow focus on addressing the instruction rather than discussing the tool usage itself.\n\n----------\n{self.context or ''}"
         else:
             final_context = self.context or ''
 
@@ -268,12 +318,29 @@ Now provide a valid JSON object indicating whether the necessary information to 
             max_tokens=self.max_tokens
         )
         
-        return updated_task.llm(updated_task.system_prompt(), updated_task.user_prompt(), image_data=updated_task.image_data)
+        try:
+            llm_result = updated_task.llm(updated_task.system_prompt(), updated_task.user_prompt(), image_data=updated_task.image_data)
+            
+            if isinstance(llm_result, tuple) and len(llm_result) == 2:
+                response, error = llm_result
+            elif isinstance(llm_result, dict):
+                response = json.dumps(llm_result)
+                error = None
+            elif isinstance(llm_result, str):
+                response = llm_result
+                error = None
+            else:
+                error = ValueError(f"Unexpected result type from LLM: {type(llm_result)}")
+                response = ""
 
-    def execute(self) -> str:
-        tools_to_use = self.agent.tools if self.agent and self.agent.tools else self.tools
-        if tools_to_use:
-            tool_usage_history = self._execute_tool_loop()
-            return self._execute_final_task(tool_usage_history)
-        else:
-            return self.llm(self.system_prompt(), self.user_prompt(), image_data=self.image_data, temperature=self.temperature, max_tokens=self.max_tokens)
+            if error:
+                if callback:
+                    callback({"type": "error", "content": str(error)})
+                return error
+            if callback:
+                callback({"type": "final_response", "content": response})
+            return response
+        except Exception as e:
+            if callback:
+                callback({"type": "error", "content": str(e)})
+            return e
