@@ -1,5 +1,5 @@
 import os, time, requests, base64, random
-from typing import List, Union, Tuple, Optional
+from typing import List, Union, Tuple, Optional, Dict
 from anthropic import Anthropic, APIStatusError, APITimeoutError, APIConnectionError, APIResponseValidationError, RateLimitError
 from openai.types.chat import ChatCompletion
 from openai import OpenAI, APIError, APIConnectionError, APITimeoutError, RateLimitError, AuthenticationError
@@ -82,11 +82,11 @@ def print_error(message):
 
 class OpenaiModels:
     @staticmethod
-    def send_openai_request(system_prompt: str, user_prompt: str, model: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
+    def send_openai_request(system_prompt: str, user_prompt: str, model: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, response_format: Optional[Dict[str, str]] = None) -> Tuple[str, Optional[Exception]]:
         print_model_request("OpenAI", model)
         if debug:
             print_debug(f"Entering send_openai_request function")
-            print_debug(f"Parameters: system_prompt={system_prompt}, user_prompt={user_prompt}, model={model}, image_data={image_data}, temperature={temperature}, max_tokens={max_tokens}")
+            print_debug(f"Parameters: system_prompt={system_prompt}, user_prompt={user_prompt}, model={model}, image_data={image_data}, temperature={temperature}, max_tokens={max_tokens}, response_format={response_format}")
 
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         print_debug(f"OpenAI client initialized with API key: {os.getenv('OPENAI_API_KEY')[:5]}...")
@@ -134,12 +134,16 @@ class OpenaiModels:
                 print_debug(f"Attempt {attempt + 1}/{max_retries}")
                 try:
                     print_debug("Creating chat completion")
-                    response: ChatCompletion = client.chat.completions.create(
-                        messages=messages,
-                        model=model,
-                        max_tokens=max_tokens,
-                        temperature=temperature
-                    )
+                    completion_params = {
+                        "messages": messages,
+                        "model": model,
+                        "max_tokens": max_tokens,
+                        "temperature": temperature
+                    }
+                    if response_format:
+                        completion_params["response_format"] = response_format
+                    
+                    response: ChatCompletion = client.chat.completions.create(**completion_params)
                     print_debug(f"Response received: {response}")
 
                     response_text = response.choices[0].message.content if response.choices else ""
@@ -206,29 +210,29 @@ class OpenaiModels:
                 spinner.fail('Request failed')
 
     @staticmethod
-    def gpt_4_turbo(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4-turbo", image_data, temperature, max_tokens)
+    def gpt_4_turbo(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, response_format: Optional[Dict[str, str]] = None) -> Tuple[str, Optional[Exception]]:
+        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4-turbo", image_data, temperature, max_tokens, response_format)
     
     @staticmethod
-    def gpt_3_5_turbo(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-3.5-turbo", image_data, temperature, max_tokens)
+    def gpt_3_5_turbo(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, response_format: Optional[Dict[str, str]] = None) -> Tuple[str, Optional[Exception]]:
+        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-3.5-turbo", image_data, temperature, max_tokens, response_format)
 
     @staticmethod
-    def gpt_4o(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4o", image_data, temperature, max_tokens)
+    def gpt_4o(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, response_format: Optional[Dict[str, str]] = None) -> Tuple[str, Optional[Exception]]:
+        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4o", image_data, temperature, max_tokens, response_format)
     
     @staticmethod
-    def gpt_4o_mini(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4", image_data, temperature, max_tokens)
+    def gpt_4o_mini(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, response_format: Optional[Dict[str, str]] = None) -> Tuple[str, Optional[Exception]]:
+        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4", image_data, temperature, max_tokens, response_format)
 
     @staticmethod
-    def gpt_4(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4", image_data, temperature, max_tokens)
+    def gpt_4(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, response_format: Optional[Dict[str, str]] = None) -> Tuple[str, Optional[Exception]]:
+        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4", image_data, temperature, max_tokens, response_format)
     
     @staticmethod
     def custom_model(model_name: str):
-        def wrapper(system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-            return OpenaiModels.send_openai_request(system_prompt, user_prompt, model_name, image_data, temperature, max_tokens)
+        def wrapper(system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, response_format: Optional[Dict[str, str]] = None) -> Tuple[str, Optional[Exception]]:
+            return OpenaiModels.send_openai_request(system_prompt, user_prompt, model_name, image_data, temperature, max_tokens, response_format)
         return wrapper
 
 class AnthropicModels:
