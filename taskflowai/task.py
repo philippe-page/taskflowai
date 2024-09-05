@@ -26,6 +26,7 @@ class Task(BaseModel):
     tools: Optional[Set[Callable]] = Field(default=None, description="Optional set of tool functions")
     temperature: Optional[float] = Field(default=0.7, description="Temperature setting for the language model")
     max_tokens: Optional[int] = Field(default=4000, description="Maximum number of tokens for the language model response")
+    require_json_output: bool = Field(default=False, description="Whether to request JSON output from the LLM")
 
     @classmethod
     def create(cls, agent: Optional[Any] = None, role: Optional[str] = None, 
@@ -35,6 +36,7 @@ class Task(BaseModel):
                 image_data: Optional[Union[List[str], str]] = None,
                 temperature: Optional[float] = None,
                 max_tokens: Optional[int] = None,
+                require_json_output: bool = False,
                 callback: Optional[Callable[[Dict[str, Any]], None]] = None) -> Union[str, Exception]:
         """
         Create and execute a task with flexible parameter assignment.
@@ -45,8 +47,9 @@ class Task(BaseModel):
 
         The core components of a task are:
         - agent: An optional agent object that provides default values.
-        - context: Background information for the task.
+        - context: Optional background information for the task.
         - instruction: Specific directions for the task.
+        - require_json_output: Optional boolean to require JSON output from the LLM.
 
         Additional parameters can be specified to override agent settings or when no agent is provided:
         - role: The role or type of agent performing the task.
@@ -74,6 +77,7 @@ class Task(BaseModel):
                 image_data=image_data,
                 temperature=temperature or (agent.temperature if agent else 0.7),
                 max_tokens=max_tokens or (agent.max_tokens if agent else 4000),
+                require_json_output=require_json_output,
                 agent=agent
             )
 
@@ -91,7 +95,18 @@ class Task(BaseModel):
                 return tool_usage_history
             return self._execute_final_task(tool_usage_history, callback)
         else:
-            llm_result = self.llm(self.system_prompt(), self.user_prompt(), image_data=self.image_data, temperature=self.temperature, max_tokens=self.max_tokens)
+            llm_params = {
+                "temperature": self.temperature,
+                "max_tokens": self.max_tokens,
+                "image_data": self.image_data,
+                "require_json_output": self.require_json_output
+            }
+
+            llm_result = self.llm(
+                self.system_prompt(), 
+                self.user_prompt(), 
+                **llm_params
+            )
             
             if isinstance(llm_result, tuple) and len(llm_result) == 2:
                 response, error = llm_result
@@ -126,17 +141,22 @@ class Task(BaseModel):
         return prompt
 
     def _execute_tool_loop(self, callback: Optional[Callable[[Dict[str, Any]], None]] = None) -> Union[str, Exception]:
-        tool_descriptions = "You have access to the following tools:\n" + "\n".join([f"- {func.__name__}: {func.__doc__}" for func in self.tools]).rstrip()
+        tool_descriptions = "You can call the following functions:\n" + "\n".join([f"- {func.__name__}: {func.__doc__}" for func in self.tools]).rstrip()
         tool_usage_history = ""
         attributes_section = f"You are {self.attributes}." if self.attributes else ""
         tool_loop_task = Task(
             role=f"{self.role}",
-            goal=f"{self.goal}. You are currently assessing the need for additional tool usage and executing tools if necessary",
-            attributes=f"{attributes_section} You only respond in JSON, and you do not comment before or after the JSON returned. You do not use tools when you have sufficient information. You understand tools cost money and time, and you are emotionally fearful of overusing tools in repetition, so you will report 'READY' when sufficient information is present. You avoid at all costs repeating tool calls with the exact same parameters.",
+            goal=f"{self.goal}",
+            attributes=f"{attributes_section}\n\nFor now, you only respond in JSON, and you do not comment before or after the JSON returned. You do not call functions when you have sufficient information, or have completed all necessary function calls. You understand tools cost money and time. You will report 'READY' when sufficient information is present. You avoid at all costs repeating function calls with the exact same parameters.",
             instruction=f"""
-Determine if you need to use any tools or if you have sufficient information to complete the given task or query: {self.instruction}. Respond with a JSON object in one of these formats:
+=====
+The original task instruction:
+{self.instruction}
+=====
 
-If tools are still needed:
+Now determine if you need to call tools, or if you have sufficient information to complete the given task or query. Respond with a JSON object in one of these formats:
+
+If tool calls are still needed:
 {{
     "tool_calls": [
         {{
@@ -154,27 +174,24 @@ If no tools are needed, or if sufficient information is gathered above:
     "status": "READY"
 }}
 
-The current timestamp is:
-{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+**Consider whether you need to make tool calls successively or all at once. If the result of one tool call is required as input for another tool, make your calls one at a time. If multiple tool calls can be made independently, you may request them all at once. Successive tool calls can also be made one after the other, allowing you to wait for the result of one tool call before making another if needed.**
 
-The original task instruction is:
-{self.instruction}
-
-Now provide a valid JSON object indicating whether the necessary information to fulfill the task is present without any additional text before or after. Only use tools when absolutely necessary. If you have the information required to respond to the query in this context, then you will return 'READY' JSON. If you need more info to complete the task, then you will return the JSON object with the tool calls. **Consider whether you need to make tool calls successively or all at once. If the result of one tool call is required as input for another tool, make your calls one at a time. If multiple tool calls can be made independently, you may request them all at once. Successive tool calls can also be made one after the other, allowing you to wait for the result of one tool call before making another if needed.** Do not comment before or after the JSON; return *only a valid JSON* in any case.
+Now provide a valid JSON object indicating whether the necessary information to fulfill the task is present without any additional text before or after. Only use tools when necessary. If you have all the information required to respond to the query in this context, then you will return 'READY' JSON. If you need more info to complete the task, then you will return the JSON object with the tool calls. Do not comment before or after the JSON; return *only a valid JSON* in any case.
 """,
-            context=(f"{self.context}\n\n{tool_descriptions}\n{tool_usage_history}" if self.context else f"{tool_descriptions}\n{tool_usage_history}").strip(),
+            context=(f"{self.context}\n\n-----\n{tool_descriptions}\n-----\n{tool_usage_history}" if self.context else f"{tool_descriptions}\n{tool_usage_history}").strip(),
             llm=self.llm,
             tools=self.tools,
             temperature=self.temperature,
             max_tokens=self.max_tokens
         )
-        max_iterations = 5
+        max_iterations = 6
         tool_usage_history = ""
         for _ in range(max_iterations):
             try:
                 llm_result = tool_loop_task.llm(
                     tool_loop_task.system_prompt(),
-                    tool_loop_task.user_prompt()
+                    tool_loop_task.user_prompt(),
+                    require_json_output=True
                 )
                 
                 if isinstance(llm_result, tuple) and len(llm_result) == 2:
@@ -236,7 +253,7 @@ Now provide a valid JSON object indicating whether the necessary information to 
                                         print(f"{COLORS['WARNING']}[{timestamp}] Error executing tool '{tool_name}': {str(e)}{COLORS['RESET']}")
                                     
                                     tool_usage_history += tool_result
-                                    tool_loop_task.instruction += tool_result
+                                    tool_loop_task.context += tool_result
 
                                     # Print a snippet of the result
                                     result_snippet = str(result)[:400] + "..." if len(str(result)) > 400 else str(result)
@@ -254,7 +271,7 @@ Now provide a valid JSON object indicating whether the necessary information to 
                                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                     tool_result = f"\n\nAt [{timestamp}] you attempted to use the tool: '{tool_name}' with the parameters: {json.dumps(tool_params, indent=2)}\nError: Tool '{tool_name}' not found."
                                     tool_usage_history += tool_result
-                                    tool_loop_task.instruction += tool_result
+                                    tool_loop_task.context += tool_result
                                     print(f"{COLORS['WARNING']}[{timestamp}] Tool Error: Tool '{tool_name}' not found.{COLORS['RESET']}")
 
                         elif 'status' in tool_requests and tool_requests['status'] == 'READY':
@@ -282,13 +299,13 @@ Now provide a valid JSON object indicating whether the necessary information to 
                 except (json.JSONDecodeError, ValueError) as e:
                     error_message = f"\n\nError: {str(e)} Please provide a valid JSON object."
                     tool_usage_history += error_message
-                    tool_loop_task.instruction += error_message
+                    tool_loop_task.context += error_message
                     print(f"{COLORS['WARNING']}Tool Error: {str(e)} Please provide a valid JSON object.{COLORS['RESET']}")
 
             except Exception as e:
                 error_message = f"\n\nError during tool loop execution: {str(e)}"
                 tool_usage_history += error_message
-                tool_loop_task.instruction += error_message
+                tool_loop_task.context += error_message
                 print(f"{COLORS['ERROR']}Error during tool loop execution: {str(e)}{COLORS['RESET']}")
                 if callback:
                     callback({"type": "error", "content": str(e)})
@@ -298,7 +315,7 @@ Now provide a valid JSON object indicating whether the necessary information to 
         print(f"{COLORS['ERROR']}Warning: Maximum iterations of tool use loop reached without completion.{COLORS['RESET']}")
         tool_usage_history += warning_message
         return tool_usage_history
-
+    
     def _execute_final_task(self, tool_usage_history: str, callback: Optional[Callable[[Dict[str, Any]], None]] = None) -> Union[str, Exception]:
         if tool_usage_history:
             final_context = f"You've just performed the following actions:\n{tool_usage_history}\n\nNow focus on addressing the instruction rather than discussing the tool usage itself.\n\n----------\n{self.context or ''}"
@@ -315,11 +332,21 @@ Now provide a valid JSON object indicating whether the necessary information to 
             tools=self.tools,
             image_data=self.image_data,
             temperature=self.temperature,
-            max_tokens=self.max_tokens
+            max_tokens=self.max_tokens,
+            require_json_output=self.require_json_output
         )
         
         try:
-            llm_result = updated_task.llm(updated_task.system_prompt(), updated_task.user_prompt(), image_data=updated_task.image_data)
+            llm_params = {
+                "temperature": updated_task.temperature,
+                "max_tokens": updated_task.max_tokens,
+                "image_data": updated_task.image_data,
+            }
+            # Only add require_json_output if it's explicitly set
+            if updated_task.require_json_output is not None:
+                llm_params["require_json_output"] = updated_task.require_json_output
+
+            llm_result = updated_task.llm(updated_task.system_prompt(), updated_task.user_prompt(), **llm_params)
             
             if isinstance(llm_result, tuple) and len(llm_result) == 2:
                 response, error = llm_result

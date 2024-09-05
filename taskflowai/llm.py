@@ -1,11 +1,12 @@
 import os, time, requests, base64, random
-from typing import List, Union, Tuple, Optional, Dict
+from typing import List, Union, Tuple, Optional
 from anthropic import Anthropic, APIStatusError, APITimeoutError, APIConnectionError, APIResponseValidationError, RateLimitError
 from openai.types.chat import ChatCompletion
 from openai import OpenAI, APIError, APIConnectionError, APITimeoutError, RateLimitError, AuthenticationError
 import ollama
 from halo import Halo
 import threading
+import json
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -82,11 +83,11 @@ def print_error(message):
 
 class OpenaiModels:
     @staticmethod
-    def send_openai_request(system_prompt: str, user_prompt: str, model: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, response_format: Optional[Dict[str, str]] = None) -> Tuple[str, Optional[Exception]]:
+    def send_openai_request(system_prompt: str, user_prompt: str, model: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
         print_model_request("OpenAI", model)
         if debug:
             print_debug(f"Entering send_openai_request function")
-            print_debug(f"Parameters: system_prompt={system_prompt}, user_prompt={user_prompt}, model={model}, image_data={image_data}, temperature={temperature}, max_tokens={max_tokens}, response_format={response_format}")
+            print_debug(f"Parameters: system_prompt={system_prompt}, user_prompt={user_prompt}, model={model}, image_data={image_data}, temperature={temperature}, max_tokens={max_tokens}, require_json_output={require_json_output}")
 
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         print_debug(f"OpenAI client initialized with API key: {os.getenv('OPENAI_API_KEY')[:5]}...")
@@ -140,13 +141,23 @@ class OpenaiModels:
                         "max_tokens": max_tokens,
                         "temperature": temperature
                     }
-                    if response_format:
-                        completion_params["response_format"] = response_format
+                    if require_json_output:
+                        completion_params["response_format"] = {"type": "json_object"}
+                        if not any('json' in msg['content'].lower() for msg in messages if isinstance(msg.get('content'), str)):
+                            messages.append({"role": "user", "content": "Please provide your response in valid JSON format."})
                     
                     response: ChatCompletion = client.chat.completions.create(**completion_params)
                     print_debug(f"Response received: {response}")
 
                     response_text = response.choices[0].message.content if response.choices else ""
+                    
+                    if require_json_output:
+                        try:
+                            json_response = json.loads(response_text)
+                            return json.dumps(json_response), None
+                        except json.JSONDecodeError as e:
+                            return "", ValueError(f"Failed to parse response as JSON: {e}")
+                    
                     return response_text.strip(), None
 
                 except RateLimitError as e:
@@ -210,38 +221,40 @@ class OpenaiModels:
                 spinner.fail('Request failed')
 
     @staticmethod
-    def gpt_4_turbo(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, response_format: Optional[Dict[str, str]] = None) -> Tuple[str, Optional[Exception]]:
-        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4-turbo", image_data, temperature, max_tokens, response_format)
+    def gpt_4_turbo(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4-turbo", image_data, temperature, max_tokens, require_json_output)
     
     @staticmethod
-    def gpt_3_5_turbo(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, response_format: Optional[Dict[str, str]] = None) -> Tuple[str, Optional[Exception]]:
-        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-3.5-turbo", image_data, temperature, max_tokens, response_format)
+    def gpt_3_5_turbo(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-3.5-turbo", image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def gpt_4o(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, response_format: Optional[Dict[str, str]] = None) -> Tuple[str, Optional[Exception]]:
-        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4o", image_data, temperature, max_tokens, response_format)
+    def gpt_4o(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4o", image_data, temperature, max_tokens, require_json_output)
     
     @staticmethod
-    def gpt_4o_mini(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, response_format: Optional[Dict[str, str]] = None) -> Tuple[str, Optional[Exception]]:
-        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4", image_data, temperature, max_tokens, response_format)
+    def gpt_4o_mini(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4o-mini", image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def gpt_4(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, response_format: Optional[Dict[str, str]] = None) -> Tuple[str, Optional[Exception]]:
-        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4", image_data, temperature, max_tokens, response_format)
+    def gpt_4(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4", image_data, temperature, max_tokens, require_json_output)
     
     @staticmethod
     def custom_model(model_name: str):
-        def wrapper(system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, response_format: Optional[Dict[str, str]] = None) -> Tuple[str, Optional[Exception]]:
-            return OpenaiModels.send_openai_request(system_prompt, user_prompt, model_name, image_data, temperature, max_tokens, response_format)
+        def wrapper(system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+            return OpenaiModels.send_openai_request(system_prompt, user_prompt, model_name, image_data, temperature, max_tokens, require_json_output)
         return wrapper
+
+import json
 
 class AnthropicModels:
     @staticmethod
-    def call_anthropic(system_prompt: str, user_prompt: str, model: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
+    def call_anthropic(system_prompt: str, user_prompt: str, model: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
         print_model_request("Anthropic", model)
         if debug:
             print_debug(f"Entering call_anthropic function")
-            print_debug(f"Parameters: system_prompt={system_prompt}, user_prompt={user_prompt}, model={model}, image_data={image_data}, temperature={temperature}, max_tokens={max_tokens}")
+            print_debug(f"Parameters: system_prompt={system_prompt}, user_prompt={user_prompt}, model={model}, image_data={image_data}, temperature={temperature}, max_tokens={max_tokens}, require_json_output={require_json_output}")
 
         max_retries = 6
         base_delay = 5
@@ -305,6 +318,10 @@ class AnthropicModels:
                         messages[0]["content"].append({"type": "text", "text": user_prompt})
                     else:
                         messages[0]["content"] = user_prompt
+
+                    if require_json_output:
+                        if not any('json' in msg['content'].lower() for msg in messages if isinstance(msg.get('content'), str)):
+                            messages.append({"role": "user", "content": "Please provide your response in valid JSON format."})
                     
                     print_debug(f"Final messages structure: {messages}")
                     
@@ -320,6 +337,13 @@ class AnthropicModels:
                     response_texts = [block.text for block in message.content if block.type == 'text']
                     response_text = " ".join(response_texts)
                     print_debug(f"Processed response text (truncated): {response_text[:100]}...")
+                    
+                    if require_json_output:
+                        try:
+                            json_response = json.loads(response_text)
+                            return json.dumps(json_response), None
+                        except json.JSONDecodeError as e:
+                            return "", ValueError(f"Failed to parse response as JSON: {e}")
                     
                     return response_text, None
 
@@ -390,34 +414,36 @@ class AnthropicModels:
                 spinner.fail('Request failed')
 
     @staticmethod
-    def opus(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-opus-20240229", image_data, temperature, max_tokens)
+    def opus(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-opus-20240229", image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def sonnet(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-sonnet-20240229", image_data, temperature, max_tokens)
+    def sonnet(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-sonnet-20240229", image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def haiku(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-haiku-20240307", image_data, temperature, max_tokens)
+    def haiku(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-haiku-20240307", image_data, temperature, max_tokens, require_json_output)
     
     @staticmethod
-    def sonnet_3_5(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-5-sonnet-20240620", image_data, temperature, max_tokens)
+    def sonnet_3_5(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-5-sonnet-20240620", image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
     def custom_model(model_name: str):
-        def wrapper(system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-            return AnthropicModels.call_anthropic(system_prompt, user_prompt, model_name, image_data, temperature, max_tokens)
+        def wrapper(system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+            return AnthropicModels.call_anthropic(system_prompt, user_prompt, model_name, image_data, temperature, max_tokens, require_json_output)
         return wrapper
+
+import json
 
 class OpenrouterModels:
     @staticmethod
-    def call_openrouter_api(model_key: str, system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
+    def call_openrouter_api(model_key: str, system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
         print_model_request("OpenRouter", model_key)
         if debug:
             print_debug(f"Entering call_openrouter_api function")
-            print_debug(f"Parameters: model_key={model_key}, system_prompt={system_prompt}, user_prompt={user_prompt}, image_data={image_data}, temperature={temperature}, max_tokens={max_tokens}")
+            print_debug(f"Parameters: model_key={model_key}, system_prompt={system_prompt}, user_prompt={user_prompt}, image_data={image_data}, temperature={temperature}, max_tokens={max_tokens}, require_json_output={require_json_output}")
 
         print_api_request(f"{system_prompt}\n{user_prompt}")
         if image_data:
@@ -505,14 +531,27 @@ class OpenrouterModels:
                 else:
                     messages[1]["content"] = user_prompt
 
-                print_debug(f"Final messages structure: {messages}")
+                if require_json_output:
+                    if not any('json' in msg['content'].lower() for msg in messages if isinstance(msg.get('content'), str)):
+                        messages.append({"role": "user", "content": "Please provide your response in valid JSON format."})
 
+                print_debug(f"Final messages structure: {messages}")
+                
                 body = {
                     "model": model_key,
                     "messages": messages,
                     "max_tokens": max_tokens,
                     "temperature": temperature
                 }
+
+                if require_json_output:
+                    body["response_format"] = {"type": "json_object"}
+                    # Add an explicit instruction to output JSON
+                    body["messages"].append({
+                        "role": "user",
+                        "content": "Please provide your response in valid JSON format."
+                    })
+
                 print_debug(f"Request body prepared: {body}")
 
                 print_debug("Sending POST request to Openrouter API")
@@ -525,6 +564,14 @@ class OpenrouterModels:
                 if 'choices' in response_data and len(response_data['choices']) > 0:
                     generated_text = response_data['choices'][0]['message']['content']
                     print_debug(f"Generated text: {generated_text.strip()}")
+                    
+                    if require_json_output:
+                        try:
+                            json_response = json.loads(generated_text)
+                            return json.dumps(json_response), None
+                        except json.JSONDecodeError as e:
+                            return "", ValueError(f"Failed to parse response as JSON: {e}")
+                    
                     return generated_text.strip(), None
                 else:
                     error_msg = f"Unexpected response format. 'choices' key not found or empty. Response data: {response_data}"
@@ -602,154 +649,154 @@ class OpenrouterModels:
             return "", Exception("Max retries reached")
 
     @staticmethod
-    def haiku(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("anthropic/claude-3-haiku", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def haiku(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("anthropic/claude-3-haiku", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def sonnet(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("anthropic/claude-3-sonnet", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def sonnet(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("anthropic/claude-3-sonnet", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
     
     @staticmethod
-    def sonnet_3_5(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("anthropic/claude-3.5-sonnet", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def sonnet_3_5(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("anthropic/claude-3.5-sonnet", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def opus(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("anthropic/claude-3-opus", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def opus(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("anthropic/claude-3-opus", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def gpt_3_5_turbo(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("openai/gpt-3.5-turbo", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def gpt_3_5_turbo(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("openai/gpt-3.5-turbo", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def gpt_4_turbo(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("openai/gpt-4-turbo", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def gpt_4_turbo(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("openai/gpt-4-turbo", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def gpt_4(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("openai/gpt-4", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def gpt_4(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("openai/gpt-4", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def gpt_4o(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("openai/gpt-4o", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def gpt_4o(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("openai/gpt-4o", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
     
     @staticmethod
-    def gpt_4o_mini(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("openai/gpt-4o-mini", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def gpt_4o_mini(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("openai/gpt-4o-mini", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
     
     @staticmethod
-    def gemini_flash_1_5(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("google/gemini-flash-1.5", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def gemini_flash_1_5(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("google/gemini-flash-1.5", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def llama_3_70b_sonar_32k(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("perplexity/llama-3-sonar-large-32k-chat", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def llama_3_70b_sonar_32k(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("perplexity/llama-3-sonar-large-32k-chat", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
     
     @staticmethod
-    def command_r(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("cohere/command-r-plus", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def command_r(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("cohere/command-r-plus", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def nous_hermes_2_mistral_7b_dpo(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("nousresearch/nous-hermes-2-mistral-7b-dpo", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def nous_hermes_2_mistral_7b_dpo(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("nousresearch/nous-hermes-2-mistral-7b-dpo", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def nous_hermes_2_mixtral_8x7b_dpo(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("nousresearch/nous-hermes-2-mixtral-8x7b-dpo", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def nous_hermes_2_mixtral_8x7b_dpo(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("nousresearch/nous-hermes-2-mixtral-8x7b-dpo", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def nous_hermes_yi_34b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("nousresearch/nous-hermes-yi-34b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def nous_hermes_yi_34b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("nousresearch/nous-hermes-yi-34b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
     
     @staticmethod
-    def qwen_2_72b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("qwen/qwen-2-72b-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def qwen_2_72b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("qwen/qwen-2-72b-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def mistral_7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("mistralai/mistral-7b-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def mistral_7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("mistralai/mistral-7b-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def mistral_7b_nitro(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("mistralai/mistral-7b-instruct:nitro", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def mistral_7b_nitro(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("mistralai/mistral-7b-instruct:nitro", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
     
     @staticmethod
-    def mixtral_8x7b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("mistralai/mixtral-8x7b-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def mixtral_8x7b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("mistralai/mixtral-8x7b-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def mixtral_8x7b_instruct_nitro(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("mistralai/mixtral-8x7b-instruct:nitro", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def mixtral_8x7b_instruct_nitro(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("mistralai/mixtral-8x7b-instruct:nitro", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
     
     @staticmethod
-    def mixtral_8x22b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("mistralai/mixtral-8x22b-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def mixtral_8x22b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("mistralai/mixtral-8x22b-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def wizardlm_2_8x22b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("microsoft/wizardlm-2-8x22b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def wizardlm_2_8x22b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("microsoft/wizardlm-2-8x22b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def neural_chat_7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("intel/neural-chat-7b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def neural_chat_7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("intel/neural-chat-7b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def gemma_7b_it(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("google/gemma-7b-it", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def gemma_7b_it(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("google/gemma-7b-it", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def gemini_pro(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("google/gemini-pro", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def gemini_pro(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("google/gemini-pro", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def llama_3_8b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("meta-llama/llama-3-8b-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def llama_3_8b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("meta-llama/llama-3-8b-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
     
     @staticmethod
-    def llama_3_70b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("meta-llama/llama-3-70b-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def llama_3_70b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("meta-llama/llama-3-70b-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
         
     @staticmethod
-    def llama_3_70b_instruct_nitro(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("meta-llama/llama-3-70b-instruct:nitro", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def llama_3_70b_instruct_nitro(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("meta-llama/llama-3-70b-instruct:nitro", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
     
     @staticmethod
-    def llama_3_8b_instruct_nitro(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("meta-llama/llama-3-8b-instruct:nitro", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def llama_3_8b_instruct_nitro(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("meta-llama/llama-3-8b-instruct:nitro", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
     
     @staticmethod
-    def dbrx_132b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("databricks/dbrx-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def dbrx_132b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("databricks/dbrx-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def deepseek_coder(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("deepseek/deepseek-coder", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def deepseek_coder(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("deepseek/deepseek-coder", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def llama_3_1_70b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("meta-llama/llama-3.1-70b-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def llama_3_1_70b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("meta-llama/llama-3.1-70b-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def llama_3_1_8b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("meta-llama/llama-3.1-8b-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def llama_3_1_8b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("meta-llama/llama-3.1-8b-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def llama_3_1_405b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OpenrouterModels.call_openrouter_api("meta-llama/llama-3.1-405b-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def llama_3_1_405b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("meta-llama/llama-3.1-405b-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
     def custom_model(model_name: str):
-        def wrapper(system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-            return OpenrouterModels.call_openrouter_api(model_name, system_prompt, user_prompt, image_data, temperature, max_tokens)
+        def wrapper(system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+            return OpenrouterModels.call_openrouter_api(model_name, system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
         return wrapper
 
 class OllamaModels:
     @staticmethod
-    def call_ollama(model: str, system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
+    def call_ollama(model: str, system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
         print_model_request("Ollama", model)
         if debug:
             print_debug(f"Entering call_ollama function")
-            print_debug(f"Parameters: model={model}, system_prompt={system_prompt}, user_prompt={user_prompt}, image_data={image_data}, temperature={temperature}, max_tokens={max_tokens}")
+            print_debug(f"Parameters: model={model}, system_prompt={system_prompt}, user_prompt={user_prompt}, image_data={image_data}, temperature={temperature}, max_tokens={max_tokens}, require_json_output={require_json_output}")
 
         max_retries = 6
         base_delay = 5
@@ -777,6 +824,9 @@ class OllamaModels:
                 {"role": "user", "content": user_prompt}
             ]
 
+            if require_json_output:
+                messages.append({"role": "user", "content": "Please provide your response in valid JSON format."})
+
             if image_data:
                 print_debug("Processing image data")
                 if isinstance(image_data, str):
@@ -797,9 +847,25 @@ class OllamaModels:
                 print_debug(f"Attempt {attempt + 1}/{max_retries}")
                 try:
                     client = ollama.Client()
-                    response = client.chat(model=model, messages=messages)
+                    response = client.chat(
+                        model=model,
+                        messages=messages,
+                        format="json" if require_json_output else None,
+                        options={
+                            "temperature": temperature,
+                            "num_predict": max_tokens
+                        }
+                    )
 
                     response_text = response['message']['content']
+                    
+                    if require_json_output:
+                        try:
+                            json_response = json.loads(response_text)
+                            return json.dumps(json_response), None
+                        except json.JSONDecodeError as e:
+                            return "", ValueError(f"Failed to parse response as JSON: {e}")
+                    
                     return response_text.strip(), None
 
                 except ollama.ResponseError as e:
@@ -844,143 +910,144 @@ class OllamaModels:
 
     # Llama 3 models
     @staticmethod
-    def llama3_8b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("llama3", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def llama3_8b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("llama3", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def llama3_70b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("llama3:70b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def llama3_70b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("llama3:70b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     # Gemma models
     @staticmethod
-    def gemma_2b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("gemma:2b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def gemma_2b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("gemma:2b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def gemma_7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("gemma:7b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def gemma_7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("gemma:7b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     # Mistral model
     @staticmethod
-    def mistral_7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("mistral", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def mistral_7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("mistral", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     # Qwen models
     @staticmethod
-    def qwen_0_5b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("qwen:0.5b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def qwen_0_5b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("qwen:0.5b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def qwen_1_8b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("qwen:1.8b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def qwen_1_8b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("qwen:1.8b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def qwen_4b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("qwen:4b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def qwen_4b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("qwen:4b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def qwen_32b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("qwen:32b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def qwen_32b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("qwen:32b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def qwen_72b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("qwen:72b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def qwen_72b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("qwen:72b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def qwen_110b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("qwen:110b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def qwen_110b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("qwen:110b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     # Phi-3 models
     @staticmethod
-    def phi3_3b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("phi3:3b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def phi3_3b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("phi3:3b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def phi3_14b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("phi3:14b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def phi3_14b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("phi3:14b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     # Llama 2 models
     @staticmethod
-    def llama2_7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("llama2:7b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def llama2_7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("llama2:7b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def llama2_13b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("llama2:13b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def llama2_13b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("llama2:13b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def llama2_70b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("llama2:70b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def llama2_70b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("llama2:70b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     # CodeLlama models
     @staticmethod
-    def codellama_7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("codellama:7b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def codellama_7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("codellama:7b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def codellama_13b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("codellama:13b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def codellama_13b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("codellama:13b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def codellama_34b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("codellama:34b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def codellama_34b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("codellama:34b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def codellama_70b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("codellama:70b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def codellama_70b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("codellama:70b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     # Gemma 2 models
     @staticmethod
-    def gemma2_9b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("gemma2:9b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def gemma2_9b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("gemma2:9b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def gemma2_27b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("gemma2:27b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def gemma2_27b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("gemma2:27b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     # Qwen 2 models
     @staticmethod
-    def qwen2_0_5b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("qwen2:0.5b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def qwen2_0_5b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("qwen2:0.5b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def qwen2_1_5b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("qwen2:1.5b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def qwen2_1_5b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("qwen2:1.5b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def qwen2_7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("qwen2:7b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def qwen2_7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("qwen2:7b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def qwen2_72b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("qwen2:72b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def qwen2_72b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("qwen2:72b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     # LLaVA model
     @staticmethod
-    def llava(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("llava", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def llava(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("llava", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     # Mixtral models
     @staticmethod
-    def mixtral_8x7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("mixtral:8x7b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def mixtral_8x7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("mixtral:8x7b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def mixtral_8x22b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("mixtral:8x22b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def mixtral_8x22b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("mixtral:8x22b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     # Dolphin Mixtral models
     @staticmethod
-    def dolphin_mixtral_8x7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("dolphin-mixtral:8x7b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def dolphin_mixtral_8x7b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("dolphin-mixtral:8x7b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
-    def dolphin_mixtral_8x22b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-        return OllamaModels.call_ollama("dolphin-mixtral:8x22b", system_prompt, user_prompt, image_data, temperature, max_tokens)
+    def dolphin_mixtral_8x22b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OllamaModels.call_ollama("dolphin-mixtral:8x22b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
     
     @staticmethod
     def custom_model(model_name: str):
-        def wrapper(system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000) -> Tuple[str, Optional[Exception]]:
-            return OllamaModels.call_ollama(model_name, system_prompt, user_prompt, image_data, temperature, max_tokens)
+        def wrapper(system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+            return OllamaModels.call_ollama(model_name, system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
         return wrapper
+
 
