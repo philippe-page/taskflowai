@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "taskflowai"
-version = "0.3.0"
+version = "0.3.1"
 description = "TaskFlowAI is a lightweight python framework for building LLM based pipelines and multi-agent teams"
 readme = "README.md"
 requires-python = ">=3.7"
