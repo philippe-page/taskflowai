@@ -1,77 +1,70 @@
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
-[project]
+[tool.poetry]
 name = "taskflowai"
-version = "0.3.1"
+version = "0.4.1"
 description = "TaskFlowAI is a lightweight python framework for building LLM based pipelines and multi-agent teams"
+authors = ["Philippe Andre Page <philippeandrepage@gmail.com>"]
 readme = "README.md"
-requires-python = ">=3.7"
-license = {file = "LICENSE"}
-authors = [
-    {name = "Philippe Andre Page", email = "philippeandrepage@gmail.com"},
-]
+packages = [{include = "taskflowai"}]
+license = "Apache 2.0"
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
-]
-dependencies = [
-    "requests>=2.5.0",
-    "pydantic>=1.10,<2.0",
-    "anthropic>=0.31.2",
-    "openai>=1.37.0",
-    "cohere>=5.6.2",
-    "beautifulsoup4>=4.12",
-    "fake-useragent>=1.1",
-    "Pillow>=10.4",
-    "tqdm>=4.65",
-    "python-dotenv>=1.0",
-    "PyYAML>=6.0",
-    "pandas>=2.2",
-    "ollama>=0.1.0",
-    "lxml>=4.9",
-    "halo>=0.0.31",
+    "Programming Language :: Python :: 3.12",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.0,<8.0",
-    "black>=23.0,<24.0",
-    "isort>=5.0,<6.0",
-    "mypy>=1.0,<2.0",
-]
+[tool.poetry.dependencies]
+python = "^3.10,<3.13"
+requests = "^2.5.0"
+pydantic = "^2.0"
+anthropic = "^0.31.2"
+openai = "^1.37.0"
+cohere = "^5.6.2"
+beautifulsoup4 = "^4.12"
+fake-useragent = "^1.1"
+Pillow = "^10.4"
+tqdm = "^4.65"
+python-dotenv = "^1.0"
+PyYAML = "^6.0"
+pandas = "^2.2"
+ollama = "^0.1.0"
+lxml = "^4.9"
+halo = "^0.0.31"
+langchain-core = "^0.3.0"
+langchain-community = "^0.3.0"
+langchain-openai = "^0.2.0"
+groq = "^0.11.0"
 
-[project.urls]
+[tool.poetry.group.dev.dependencies]
+pytest = ">=8.0.0,<9.0.0"
+black = ">=23.0,<25.0"
+isort = ">=5.0,<6.0"
+mypy = ">=1.0,<2.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.urls]
 "Homepage" = "https://github.com/philippe-page/taskflowai/"
 "Bug Tracker" = "https://github.com/philippe-page/taskflowai/issues"
-"Documentation" = "https://taskflowai.org" 
-
-[tool.setuptools.packages.find]
-include = ["taskflowai*"]
-exclude = ["tests*"]
-
-[tool.setuptools.package-data]
-taskflowai = ["py.typed"]
+"Documentation" = "https://taskflowai.org"
 
 [tool.black]
 line-length = 100
-target-version = ['py37']
+target-version = ['py310']
 
 [tool.isort]
 profile = "black"
 line_length = 100
 
 [tool.mypy]
-python_version = "3.7"
+python_version = "3.10"
 strict = true
 ignore_missing_imports = true
 
