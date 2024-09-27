@@ -1,6 +1,5 @@
 from datetime import datetime
-import base64, io
-from PIL import Image
+import base64
 
 class Utils:
 
@@ -38,19 +37,13 @@ class Utils:
         Raises:
             IOError: If there's an error opening or processing the image file.
         """
-        with Image.open(image_path) as img:
-            # Calculate new dimensions
-            new_width = int(img.width * scale_factor)
-            new_height = int(img.height * scale_factor)
-            
-            # Resize the image
-            resized_img = img.resize((new_width, new_height), Image.LANCZOS)
-            
-            # Save the resized image to a bytes buffer
-            buffer = io.BytesIO()
-            resized_img.save(buffer, format="PNG")
-            
-            # Encode the buffer to base64
-            encoded_string = base64.b64encode(buffer.getvalue()).decode("utf-8")
-        
-        return encoded_string
+        import numpy as np
+        from io import BytesIO
+
+        with open(image_path, "rb") as image_file:
+            img = np.frombuffer(image_file.read(), dtype=np.uint8)
+            img = img.reshape((-1, 3))  # Assuming 3 channels (RGB)
+            resized_img = img[::int(1/scale_factor)]
+            buffer = BytesIO()
+            np.save(buffer, resized_img, allow_pickle=False)
+            return base64.b64encode(buffer.getvalue()).decode("utf-8")

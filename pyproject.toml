@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "taskflowai"
-version = "0.4.1"
+version = "0.5.4"
 description = "TaskFlowAI is a lightweight python framework for building LLM based pipelines and multi-agent teams"
 authors = ["Philippe Andre Page <philippeandrepage@gmail.com>"]
 readme = "README.md"
@@ -21,30 +21,70 @@ classifiers = [
 python = "^3.10,<3.13"
 requests = "^2.5.0"
 pydantic = "^2.0"
-anthropic = "^0.31.2"
-openai = "^1.37.0"
-cohere = "^5.6.2"
+anthropic = "^0.31"
+openai = "^1.0"
+cohere = "^5.0"
 beautifulsoup4 = "^4.12"
-fake-useragent = "^1.1"
-Pillow = "^10.4"
 tqdm = "^4.65"
 python-dotenv = "^1.0"
 PyYAML = "^6.0"
-pandas = "^2.2"
 ollama = "^0.1.0"
 lxml = "^4.9"
 halo = "^0.0.31"
-langchain-core = "^0.3.0"
-langchain-community = "^0.3.0"
-langchain-openai = "^0.2.0"
 groq = "^0.11.0"
+numpy = ">=1,<2"
+elevenlabs = "^1.0.0"
+faiss-cpu = "^1.8.0"
+pyyaml = "^6.0"
+fredapi = "^0.5.0"
+yfinance = "^0.2.20"
+yahoofinance = "^0.0.2"
+pinecone = "^5.3"
+sentence_splitter = "^1.4"
+igraph = "^0.11"
+leidenalg = "^0.10"
+fake-useragent = "^1.5"
+
+[tool.poetry.extras]
+langchain_tools = [
+    "langchain-core",
+    "langchain-community",
+    "langchain-openai"
+]
+matplotlib_tools = [
+    "matplotlib"
+]
+yahoo_finance_tools = [
+    "yfinance",
+    "yahoofinance",
+    "pandas"
+]
+fred_tools = [
+    "fredapi",
+    "pandas"
+]
+
+[tool.poetry.dependencies.langchain-core]
+version = "^0.3.0"
+optional = true
+
+[tool.poetry.dependencies.langchain-community]
+version = "^0.3.0"
+optional = true
+
+[tool.poetry.dependencies.langchain-openai]
+version = "^0.2.0"
+optional = true
+
+[tool.poetry.dependencies.matplotlib]
+version = "^3.9"
+optional = true
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.0.0,<9.0.0"
 black = ">=23.0,<25.0"
 isort = ">=5.0,<6.0"
 mypy = ">=1.0,<2.0"
-
 
 [build-system]
 requires = ["poetry-core"]

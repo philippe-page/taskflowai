@@ -1,4 +1,4 @@
-import os, time, requests, base64, random
+import os, time, requests, base64, random, re
 from typing import List, Union, Tuple, Optional
 from anthropic import Anthropic, APIStatusError, APITimeoutError, APIConnectionError, APIResponseValidationError, RateLimitError
 from openai.types.chat import ChatCompletion
@@ -143,9 +143,7 @@ class OpenaiModels:
                     }
                     if require_json_output:
                         completion_params["response_format"] = {"type": "json_object"}
-                        if not any('json' in msg['content'].lower() for msg in messages if isinstance(msg.get('content'), str)):
-                            messages.append({"role": "user", "content": "Please provide your response in valid JSON format."})
-                    
+      
                     response: ChatCompletion = client.chat.completions.create(**completion_params)
                     print_debug(f"Response received: {response}")
 
@@ -154,9 +152,16 @@ class OpenaiModels:
                     if require_json_output:
                         try:
                             json_response = json.loads(response_text)
-                            return json.dumps(json_response), None
-                        except json.JSONDecodeError as e:
-                            return "", ValueError(f"Failed to parse response as JSON: {e}")
+                        except json.JSONDecodeError:
+                            # Attempt to clean up the JSON
+                            cleaned_response = re.sub(r'\s+', ' ', response_text)  # Remove extra whitespace
+                            cleaned_response = re.sub(r'(?<=\{|\[|,)\s*|\s*(?=\}|\]|,)', '', cleaned_response)  # Remove spaces around brackets and commas
+                            try:
+                                json_response = json.loads(cleaned_response)
+                            except json.JSONDecodeError as e:
+                                return "", ValueError(f"Failed to parse response as JSON, even after cleanup: {e}")
+                        
+                        return json.dumps(json_response), None
                     
                     return response_text.strip(), None
 
@@ -245,14 +250,14 @@ class OpenaiModels:
         def wrapper(system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
             return OpenaiModels.send_openai_request(system_prompt, user_prompt, model_name, image_data, temperature, max_tokens, require_json_output)
         return wrapper
-
+    
 class AnthropicModels:
     @staticmethod
-    def call_anthropic(system_prompt: str, user_prompt: str, model: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+    def call_anthropic(system_prompt: str, user_prompt: str, model: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False, stop_sequences: Optional[List[str]] = None) -> Tuple[str, Optional[Exception]]:
         print_model_request("Anthropic", model)
         if debug:
             print_debug(f"Entering call_anthropic function")
-            print_debug(f"Parameters: system_prompt={system_prompt}, user_prompt={user_prompt}, model={model}, image_data={image_data}, temperature={temperature}, max_tokens={max_tokens}, require_json_output={require_json_output}")
+            print_debug(f"Parameters: system_prompt={system_prompt}, user_prompt={user_prompt}, model={model}, image_data={image_data}, temperature={temperature}, max_tokens={max_tokens}, require_json_output={require_json_output}, stop_sequences={stop_sequences}")
 
         max_retries = 6
         base_delay = 5
@@ -316,33 +321,50 @@ class AnthropicModels:
                         messages[0]["content"].append({"type": "text", "text": user_prompt})
                     else:
                         messages[0]["content"] = user_prompt
-
-                    if require_json_output:
-                        if not any('json' in msg['content'].lower() for msg in messages if isinstance(msg.get('content'), str)):
-                            messages.append({"role": "user", "content": "Please provide your response in valid JSON format."})
-                    
                     print_debug(f"Final messages structure: {messages}")
                     
-                    message = client.messages.create(
-                        model=model,
-                        system=system_prompt,
-                        max_tokens=max_tokens,
-                        temperature=temperature, 
-                        messages=messages
-                    )
+                    message_params = {
+                        "model": model,
+                        "system": system_prompt,
+                        "max_tokens": max_tokens,
+                        "temperature": temperature,
+                        "messages": messages
+                    }
+
+                    if stop_sequences:
+                        message_params["stop_sequences"] = stop_sequences
+
+                    message = client.messages.create(**message_params)
                     print_debug(f"API response received")
                     
                     response_texts = [block.text for block in message.content if block.type == 'text']
                     response_text = " ".join(response_texts)
                     print_debug(f"Processed response text (truncated): {response_text[:100]}...")
-                    
+                    #
                     if require_json_output:
+                        def clean_json(text):
+                            # Remove newlines, carriage returns, and extra whitespace
+                            cleaned = re.sub(r'\s+', ' ', text)
+                            # Remove spaces around brackets and commas
+                            cleaned = re.sub(r'(?<=\{|\[|,)\s*|\s*(?=\}|\]|,)', '', cleaned)
+                            return cleaned.strip()
+
                         try:
                             json.loads(response_text)  # Attempt to parse JSON, but don't store the result
                         except json.JSONDecodeError:
-                            print_color("Warning: Response is not valid JSON. Returning raw text.", 'yellow')
-                    
-                    return response_text, None
+                            # Attempt to clean up the JSON
+                            cleaned_response = clean_json(response_text)
+                            try:
+                                json.loads(cleaned_response)  # Attempt to parse cleaned JSON, but don't store the result
+                            except json.JSONDecodeError:
+                                print_color("Warning: Response is not valid JSON, even after cleanup. Returning raw text.", 'yellow')
+                            else:
+                                response_text = cleaned_response  # Use the cleaned version if it's valid JSON
+                        else:
+                            # If the original parsing succeeded, still clean the response to remove newlines
+                            response_text = clean_json(response_text)
+
+                    return response_text.strip(), None
 
                 except APIStatusError as e:
                     print_debug(f"API status error: {e}")
@@ -411,25 +433,25 @@ class AnthropicModels:
                 spinner.fail('Request failed')
 
     @staticmethod
-    def opus(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
-        return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-opus-20240229", image_data, temperature, max_tokens, require_json_output)
+    def opus(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False, stop_sequences: Optional[List[str]] = None) -> Tuple[str, Optional[Exception]]:
+        return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-opus-20240229", image_data, temperature, max_tokens, require_json_output, stop_sequences)
 
     @staticmethod
-    def sonnet(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
-        return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-sonnet-20240229", image_data, temperature, max_tokens, require_json_output)
+    def sonnet(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False, stop_sequences: Optional[List[str]] = None) -> Tuple[str, Optional[Exception]]:
+        return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-sonnet-20240229", image_data, temperature, max_tokens, require_json_output, stop_sequences)
 
     @staticmethod
-    def haiku(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
-        return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-haiku-20240307", image_data, temperature, max_tokens, require_json_output)
+    def haiku(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False, stop_sequences: Optional[List[str]] = None) -> Tuple[str, Optional[Exception]]:
+        return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-haiku-20240307", image_data, temperature, max_tokens, require_json_output, stop_sequences)
     
     @staticmethod
-    def sonnet_3_5(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
-        return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-5-sonnet-20240620", image_data, temperature, max_tokens, require_json_output)
+    def sonnet_3_5(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False, stop_sequences: Optional[List[str]] = None) -> Tuple[str, Optional[Exception]]:
+        return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-5-sonnet-20240620", image_data, temperature, max_tokens, require_json_output, stop_sequences)
 
     @staticmethod
     def custom_model(model_name: str):
-        def wrapper(system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
-            return AnthropicModels.call_anthropic(system_prompt, user_prompt, model_name, image_data, temperature, max_tokens, require_json_output)
+        def wrapper(system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False, stop_sequences: Optional[List[str]] = None) -> Tuple[str, Optional[Exception]]:
+            return AnthropicModels.call_anthropic(system_prompt, user_prompt, model_name, image_data, temperature, max_tokens, require_json_output, stop_sequences)
         return wrapper
 
 class OpenrouterModels:
@@ -526,10 +548,6 @@ class OpenrouterModels:
                 else:
                     messages[1]["content"] = user_prompt
 
-                if require_json_output:
-                    if not any('json' in msg['content'].lower() for msg in messages if isinstance(msg.get('content'), str)):
-                        messages.append({"role": "user", "content": "Please provide your response in valid JSON format."})
-
                 print_debug(f"Final messages structure: {messages}")
                 
                 body = {
@@ -541,11 +559,6 @@ class OpenrouterModels:
 
                 if require_json_output:
                     body["response_format"] = {"type": "json_object"}
-                    # Add an explicit instruction to output JSON
-                    body["messages"].append({
-                        "role": "user",
-                        "content": "Please provide your response in valid JSON format."
-                    })
 
                 print_debug(f"Request body prepared: {body}")
 
@@ -559,13 +572,20 @@ class OpenrouterModels:
                 if 'choices' in response_data and len(response_data['choices']) > 0:
                     generated_text = response_data['choices'][0]['message']['content']
                     print_debug(f"Generated text: {generated_text.strip()}")
-                    
+                    #
                     if require_json_output:
                         try:
                             json_response = json.loads(generated_text)
-                            return json.dumps(json_response), None
-                        except json.JSONDecodeError as e:
-                            return "", ValueError(f"Failed to parse response as JSON: {e}")
+                        except json.JSONDecodeError:
+                            # Attempt to clean up the JSON
+                            cleaned_text = re.sub(r'\s+', ' ', generated_text)  # Remove extra whitespace
+                            cleaned_text = re.sub(r'(?<=\{|\[|,)\s*|\s*(?=\}|\]|,)', '', cleaned_text)  # Remove spaces around brackets and commas
+                            try:
+                                json_response = json.loads(cleaned_text)
+                            except json.JSONDecodeError as e:
+                                return "", ValueError(f"Failed to parse response as JSON, even after cleanup: {e}")
+                        
+                        return json.dumps(json_response), None
                     
                     return generated_text.strip(), None
                 else:
@@ -819,9 +839,6 @@ class OllamaModels:
                 {"role": "user", "content": user_prompt}
             ]
 
-            if require_json_output:
-                messages.append({"role": "user", "content": "Please provide your response in valid JSON format."})
-
             if image_data:
                 print_debug("Processing image data")
                 if isinstance(image_data, str):
@@ -857,9 +874,16 @@ class OllamaModels:
                     if require_json_output:
                         try:
                             json_response = json.loads(response_text)
-                            return json.dumps(json_response), None
-                        except json.JSONDecodeError as e:
-                            return "", ValueError(f"Failed to parse response as JSON: {e}")
+                        except json.JSONDecodeError:
+                            # Attempt to clean up the JSON
+                            cleaned_text = re.sub(r'\s+', ' ', response_text)  # Remove extra whitespace
+                            cleaned_text = re.sub(r'(?<=\{|\[|,)\s*|\s*(?=\}|\]|,)', '', cleaned_text)  # Remove spaces around brackets and commas
+                            try:
+                                json_response = json.loads(cleaned_text)
+                            except json.JSONDecodeError as e:
+                                return "", ValueError(f"Failed to parse response as JSON, even after cleanup: {e}")
+                        
+                        return json.dumps(json_response), None
                     
                     return response_text.strip(), None
 
@@ -1090,10 +1114,6 @@ class GroqModels:
                         {"role": "user", "content": user_prompt}
                     ]
 
-                    if require_json_output:
-                        if not any('json' in msg['content'].lower() for msg in messages if isinstance(msg.get('content'), str)):
-                            messages.append({"role": "user", "content": "Please provide your response in valid JSON format."})
-
                     if image_data:
                         print_debug("Processing image data")
                         if isinstance(image_data, str):
@@ -1126,9 +1146,16 @@ class GroqModels:
                     if require_json_output:
                         try:
                             json_response = json.loads(response_text)
-                            return json.dumps(json_response), None
-                        except json.JSONDecodeError as e:
-                            return "", ValueError(f"Failed to parse response as JSON: {e}")
+                        except json.JSONDecodeError:
+                            # Attempt to clean up the JSON
+                            cleaned_text = re.sub(r'\s+', ' ', response_text)  # Remove extra whitespace
+                            cleaned_text = re.sub(r'(?<=\{|\[|,)\s*|\s*(?=\}|\]|,)', '', cleaned_text)  # Remove spaces around brackets and commas
+                            try:
+                                json_response = json.loads(cleaned_text)
+                            except json.JSONDecodeError as e:
+                                return "", ValueError(f"Failed to parse response as JSON, even after cleanup: {e}")
+                        
+                        return json.dumps(json_response), None
                     
                     return response_text.strip(), None
 

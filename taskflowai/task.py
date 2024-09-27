@@ -2,7 +2,7 @@ from pydantic import BaseModel
 from pydantic.fields import Field
 from typing import Callable, Optional, Union, Dict, List, Any, Set, Tuple
 from datetime import datetime
-import json, re
+import json, re, hashlib
 
 COLORS = {
     "RESET": "\033[0m",
@@ -148,23 +148,47 @@ class Task(BaseModel):
         prompt += self.instruction
         return prompt
 
+
     def _execute_tool_loop(self, callback: Optional[Callable[[Dict[str, Any]], None]] = None) -> Union[str, Exception]:
-        tool_descriptions = "\nYou can call the following functions:\n" + "\n".join([f"- {func.__name__}: {func.__doc__}" for func in self.tools]).rstrip()
+        tool_descriptions = "\nYou can call the following functions to gather information or perform actions:\n" + "\n".join([f"- {func.__name__}: {func.__doc__}" for func in self.tools]).rstrip()
         tool_usage_history = ""
-        attributes_section = f"You are {self.attributes}." if self.attributes else ""
-        tool_loop_task = Task(
-            role=f"{self.role}",
-            goal=f"{self.goal}",
-            attributes=f"{attributes_section}\n\nFor now, you only respond in JSON, and you do not comment before or after the JSON returned. You do not call functions when you have sufficient information, or have completed all necessary function calls. You understand tools cost money and time. You will report 'READY' when sufficient information is present. You avoid at all costs repeating function calls with the exact same parameters.",
-            instruction=f"""
+        previous_calls = {}  # Reset this dictionary for each new task execution
+
+        max_iterations = 6
+        for _ in range(max_iterations):
+            
+            # Set these variables based on whether there's been any tool usage
+            more = "more " if tool_usage_history else ""
+            additional = "additional " if tool_usage_history else ""
+
+            # Build the context string
+            context_parts = []
+
+            if self.context:
+                context_parts.append(self.context)
+
+            context_parts.append(tool_descriptions)
+
+            if tool_usage_history:
+                context_parts.append(f"Tool Usage History:\n{tool_usage_history}")
+
+            context = "\n-----\n".join(context_parts).strip()
+
+            tool_loop_task = Task(
+                role=f"{self.role}",
+                goal=f"{self.goal}",
+                attributes=f"You are {self.attributes}. You do not call functions when you have sufficient information, or have completed all necessary actions and function calls. You understand tools cost money and time. You avoid at all costs repeating function calls with the exact same parameters." if self.attributes else "",
+                instruction=f"""
 =====
 The original task instruction:
 {self.instruction}
 =====
 
-Now determine if you need to call tools, or if you have sufficient information to complete the given task or query. Respond with a JSON object in one of these formats:
+You are now determining if you need to call {more}tools to gather {more}information or perform {additional}actions to complete the given task, or if the task is complete and you are ready to provide your final response. 
 
-If tool calls are still needed:
+Now respond with a JSON object in one of these formats to either request tool calls, or to indicate you are ready to provide your final response:
+
+If tool calls are still needed for information gathering or task execution:
 {{
     "tool_calls": [
         {{
@@ -177,24 +201,19 @@ If tool calls are still needed:
     ]
 }}
 
-If no tools are needed, or if sufficient information is gathered above:
+If no more tool calls are required:
 {{
     "status": "READY"
 }}
 
-**Consider whether you need to make tool calls successively or all at once. If the result of one tool call is required as input for another tool, make your calls one at a time. If multiple tool calls can be made independently, you may request them all at once. Successive tool calls can also be made one after the other, allowing you to wait for the result of one tool call before making another if needed.**
-
-Now provide a valid JSON object indicating whether the necessary information to fulfill the task is present without any additional text before or after. Only use tools when necessary. If you have all the information required to respond to the query in this context, then you will return 'READY' JSON. If you need more info to complete the task, then you will return the JSON object with the tool calls. Do not comment before or after the JSON; return *only a valid JSON* in any case.
+If you need to make tool calls, consider whether you need to make tool calls successively or all at once. If the result of one tool call is required as input for another tool, make your calls one at a time. If multiple tool calls can be made independently, you may request them all at once. Successive tool calls can also be made one after the other, allowing you to wait for the result of one tool call before making another if needed. Now respond with a JSON object that *either requests tool calls, or indicates you are ready** to provide your final response. Do NOT comment before or after the JSON; return *only a valid JSON* in any case.
 """,
-            context=(f"{self.context}\n\n-----\n{tool_descriptions}\n-----\n{tool_usage_history}" if self.context else f"{tool_descriptions}\n{tool_usage_history}").strip(),
-            llm=self.llm,
-            tools=self.tools,
-            temperature=self.temperature,
-            max_tokens=self.max_tokens
-        )
-        max_iterations = 6
-        tool_usage_history = ""
-        for _ in range(max_iterations):
+                context=context,
+                llm=self.llm,
+                tools=self.tools,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens
+            )
             try:
                 llm_result = tool_loop_task.llm(
                     tool_loop_task.system_prompt(),
@@ -228,7 +247,6 @@ Now provide a valid JSON object indicating whether the necessary information to 
                     else:
                         raise json.JSONDecodeError("No JSON object found", response, 0)
 
-                    
                     if isinstance(tool_requests, dict):
                         if 'tool_calls' in tool_requests:
                             tool_calls = tool_requests['tool_calls']
@@ -241,6 +259,29 @@ Now provide a valid JSON object indicating whether the necessary information to 
                             for tool_request in tool_calls:
                                 tool_name = tool_request["tool"].lower()
                                 tool_params = tool_request.get("params", {})
+
+                                # Generate a hash for this tool call
+                                call_hash = hashlib.md5(f"{tool_name}:{json.dumps(tool_params, sort_keys=True)}".encode()).hexdigest()
+
+                                # Increment the call count before checking
+                                previous_calls[call_hash] = previous_calls.get(call_hash, 0) + 1
+
+                                if previous_calls[call_hash] == 3:
+                                    # Third occurrence (second repeat), warn the LLM
+                                    warning_message = (
+                                        f"\n\nWarning: You've repeated the exact same tool call for '{tool_name}'."
+                                        "**Please try a different tool, different parameters, or consider that you may be ready to proceed with your final response."
+                                    )
+                                    tool_usage_history += warning_message
+                                    tool_loop_task.context += warning_message
+                                    print(f"{COLORS['WARNING']}Warning: Tool call for '{tool_name}' has been repeated verbatim three times. "
+                                          f"Skipping execution and notifying LLM.{COLORS['RESET']}")
+                                    continue
+                                elif previous_calls[call_hash] == 4:
+                                    # Fourth occurrence (third repeat), exit the loop
+                                    print(f"{COLORS['WARNING']}Tool call for '{tool_name}' has been repeated verbatim four times. "
+                                          f"Exiting loop to proceed to the final response.{COLORS['RESET']}")
+                                    return tool_usage_history
 
                                 print(f"{COLORS['LABEL']}Tool Use: {COLORS['TOOL_NAME']}{tool_name}{COLORS['RESET']}")
                                 print(f"{COLORS['LABEL']}Parameters:")
@@ -256,10 +297,10 @@ Now provide a valid JSON object indicating whether the necessary information to 
                                     try:
                                         result = tools_dict[tool_name](**tool_params)
                                         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                        tool_result = f"\nAt [{timestamp}] you used the tool: '{tool_name}' with the parameters: {json.dumps(tool_params, indent=2)}\n\nThe following is the result of the tool's use:\n{result}"
+                                        tool_result = f"\n\nYou just used the tool: '{tool_name}' with the parameters: {json.dumps(tool_params, indent=2)}\n\nThe following is the result of the tool's use:\n{result}"
                                     except Exception as e:
                                         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                        tool_result = f"\n\nAt [{timestamp}] you used the tool: '{tool_name}' with the parameters: {json.dumps(tool_params, indent=2)}\nAn error occurred during the tool's use: {str(e)}"
+                                        tool_result = f"\n\nYou just used the tool: '{tool_name}' with the parameters: {json.dumps(tool_params, indent=2)}\nAn error occurred during the tool's use: {str(e)}"
                                         print(f"{COLORS['WARNING']}[{timestamp}] Error executing tool '{tool_name}': {str(e)}{COLORS['RESET']}")
                                     
                                     tool_usage_history += tool_result
@@ -277,9 +318,12 @@ Now provide a valid JSON object indicating whether the necessary information to 
                                             "params": tool_params,
                                             "result": result
                                         })
+
+                                    # After successful execution, store the hash or increment the count
+                                    previous_calls[call_hash] = previous_calls.get(call_hash, 0) + 1
                                 else:
                                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                    tool_result = f"\n\nAt [{timestamp}] you attempted to use the tool: '{tool_name}' with the parameters: {json.dumps(tool_params, indent=2)}\nError: Tool '{tool_name}' not found."
+                                    tool_result = f"\n\nYou just attempted to use the tool: '{tool_name}' with the parameters: {json.dumps(tool_params, indent=2)}\nError: Tool '{tool_name}' not found."
                                     tool_usage_history += tool_result
                                     tool_loop_task.context += tool_result
                                     print(f"{COLORS['WARNING']}[{timestamp}] Tool Error: Tool '{tool_name}' not found.{COLORS['RESET']}")
@@ -326,18 +370,22 @@ Now provide a valid JSON object indicating whether the necessary information to 
         tool_usage_history += warning_message
         return tool_usage_history
     
-    def _execute_final_task(self, tool_usage_history: str, callback: Optional[Callable[[Dict[str, Any]], None]] = None) -> Union[str, Exception]:
+    def _execute_final_task(self, tool_usage_history: str, callback: Optional[Callable[[Dict[str, Any]], None]] = None) -> Union[str, Dict, Exception]:
         if tool_usage_history:
-            final_context = f"You've just performed the following actions:\n{tool_usage_history}\n\nNow focus on addressing the instruction rather than discussing the tool usage itself.\n\n----------\n{self.context or ''}"
+            final_context = f"{self.context or ''}\n-----------\nYou've just performed the following actions:\n{tool_usage_history}"
         else:
             final_context = self.context or ''
+
+        instruction = f"Now focus on addressing the instruction:\n{self.instruction}"
+        if self.require_json_output:
+            instruction += "\nDo NOT comment before or after the JSON. Provide only a valid JSON object as your response."
 
         updated_task = Task(
             role=self.role,
             goal=self.goal,
             attributes=self.attributes,
             context=final_context,
-            instruction=self.instruction,
+            instruction=instruction,
             llm=self.llm,
             tools=self.tools,
             image_data=self.image_data,
@@ -376,16 +424,27 @@ Now provide a valid JSON object indicating whether the necessary information to 
                 return error
             
             if self.require_json_output:
-                json_match = re.search(r'\{.*?\}', response, re.DOTALL)
-                if json_match:
-                    json_str = json_match.group(0)
-                    try:
-                        json_response = json.loads(json_str)
-                        response = json.dumps(json_response)  # Ensure it's a valid JSON string
-                    except json.JSONDecodeError:
-                        print(f"{COLORS['WARNING']}Warning: Failed to parse extracted JSON. Returning original response.{COLORS['RESET']}")
-                else:
-                    print(f"{COLORS['WARNING']}Warning: No JSON object found in the response. Returning original response.{COLORS['RESET']}")
+                if isinstance(response, str):
+                    json_match = re.search(r'\{.*?\}', response, re.DOTALL)
+                    if json_match:
+                        json_str = json_match.group(0)
+                        try:
+                            response = json.loads(json_str)
+                        except json.JSONDecodeError:
+                            error = ValueError(f"Failed to parse JSON from LLM response: {response}")
+                            if callback:
+                                callback({"type": "error", "content": str(error)})
+                            return error
+                    else:
+                        error = ValueError(f"No JSON object found in LLM response: {response}")
+                        if callback:
+                            callback({"type": "error", "content": str(error)})
+                        return error
+                elif not isinstance(response, dict):
+                    error = ValueError(f"Expected JSON object, got {type(response)}: {response}")
+                    if callback:
+                        callback({"type": "error", "content": str(error)})
+                    return error
 
             if callback:
                 callback({"type": "final_response", "content": response})
