@@ -80,6 +80,37 @@ def print_debug(message):
 def print_error(message):
     print_color(message, 'red')
 
+def parse_json_response(response: str) -> dict:
+    """
+    Parse a JSON response, handling potential formatting issues.
+
+    Args:
+        response (str): The JSON response string to parse.
+
+    Returns:
+        dict: The parsed JSON data.
+
+    Raises:
+        ValueError: If the JSON cannot be parsed after multiple attempts.
+    """
+    try:
+        return json.loads(response)
+    except json.JSONDecodeError:
+        # Try to extract JSON using regex
+        json_match = re.search(r'\{.*\}', response, re.DOTALL)
+        if json_match:
+            try:
+                return json.loads(json_match.group())
+            except json.JSONDecodeError:
+                pass
+        
+        # Try to cleave strings before and after JSON
+        cleaved_json = response.strip().lstrip('`').rstrip('`')
+        try:
+            return json.loads(cleaved_json)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON structure: {e}")
+
 
 class OpenaiModels:
     @staticmethod
@@ -151,15 +182,9 @@ class OpenaiModels:
                     
                     if require_json_output:
                         try:
-                            json_response = json.loads(response_text)
-                        except json.JSONDecodeError:
-                            # Attempt to clean up the JSON
-                            cleaned_response = re.sub(r'\s+', ' ', response_text)  # Remove extra whitespace
-                            cleaned_response = re.sub(r'(?<=\{|\[|,)\s*|\s*(?=\}|\]|,)', '', cleaned_response)  # Remove spaces around brackets and commas
-                            try:
-                                json_response = json.loads(cleaned_response)
-                            except json.JSONDecodeError as e:
-                                return "", ValueError(f"Failed to parse response as JSON, even after cleanup: {e}")
+                            json_response = parse_json_response(response_text)
+                        except ValueError as e:
+                            return "", ValueError(f"Failed to parse response as JSON: {e}")
                         
                         return json.dumps(json_response), None
                     
@@ -342,29 +367,15 @@ class AnthropicModels:
                     print_debug(f"Processed response text (truncated): {response_text[:100]}...")
                     #
                     if require_json_output:
-                        def clean_json(text):
-                            # Remove newlines, carriage returns, and extra whitespace
-                            cleaned = re.sub(r'\s+', ' ', text)
-                            # Remove spaces around brackets and commas
-                            cleaned = re.sub(r'(?<=\{|\[|,)\s*|\s*(?=\}|\]|,)', '', cleaned)
-                            return cleaned.strip()
-
                         try:
-                            json.loads(response_text)  # Attempt to parse JSON, but don't store the result
-                        except json.JSONDecodeError:
-                            # Attempt to clean up the JSON
-                            cleaned_response = clean_json(response_text)
-                            try:
-                                json.loads(cleaned_response)  # Attempt to parse cleaned JSON, but don't store the result
-                            except json.JSONDecodeError:
-                                print_color("Warning: Response is not valid JSON, even after cleanup. Returning raw text.", 'yellow')
-                            else:
-                                response_text = cleaned_response  # Use the cleaned version if it's valid JSON
+                            json_response = parse_json_response(response_text)
+                        except ValueError as e:
+                            print_color(f"Warning: Response is not valid JSON, even after cleanup. Returning raw text. Error: {e}", 'yellow')
+                            return response_text.strip(), None
                         else:
-                            # If the original parsing succeeded, still clean the response to remove newlines
-                            response_text = clean_json(response_text)
-
-                    return response_text.strip(), None
+                            return json.dumps(json_response), None
+                    else:
+                        return response_text.strip(), None
 
                 except APIStatusError as e:
                     print_debug(f"API status error: {e}")
@@ -572,18 +583,12 @@ class OpenrouterModels:
                 if 'choices' in response_data and len(response_data['choices']) > 0:
                     generated_text = response_data['choices'][0]['message']['content']
                     print_debug(f"Generated text: {generated_text.strip()}")
-                    #
+                    # Attempt to parse the response as JSON if required
                     if require_json_output:
                         try:
-                            json_response = json.loads(generated_text)
-                        except json.JSONDecodeError:
-                            # Attempt to clean up the JSON
-                            cleaned_text = re.sub(r'\s+', ' ', generated_text)  # Remove extra whitespace
-                            cleaned_text = re.sub(r'(?<=\{|\[|,)\s*|\s*(?=\}|\]|,)', '', cleaned_text)  # Remove spaces around brackets and commas
-                            try:
-                                json_response = json.loads(cleaned_text)
-                            except json.JSONDecodeError as e:
-                                return "", ValueError(f"Failed to parse response as JSON, even after cleanup: {e}")
+                            json_response = parse_json_response(generated_text)
+                        except ValueError as e:
+                            return "", ValueError(f"Failed to parse response as JSON: {e}")
                         
                         return json.dumps(json_response), None
                     
@@ -873,15 +878,9 @@ class OllamaModels:
                     
                     if require_json_output:
                         try:
-                            json_response = json.loads(response_text)
-                        except json.JSONDecodeError:
-                            # Attempt to clean up the JSON
-                            cleaned_text = re.sub(r'\s+', ' ', response_text)  # Remove extra whitespace
-                            cleaned_text = re.sub(r'(?<=\{|\[|,)\s*|\s*(?=\}|\]|,)', '', cleaned_text)  # Remove spaces around brackets and commas
-                            try:
-                                json_response = json.loads(cleaned_text)
-                            except json.JSONDecodeError as e:
-                                return "", ValueError(f"Failed to parse response as JSON, even after cleanup: {e}")
+                            json_response = parse_json_response(response_text)
+                        except ValueError as e:
+                            return "", ValueError(f"Failed to parse response as JSON: {e}")
                         
                         return json.dumps(json_response), None
                     
@@ -1145,15 +1144,9 @@ class GroqModels:
                     
                     if require_json_output:
                         try:
-                            json_response = json.loads(response_text)
-                        except json.JSONDecodeError:
-                            # Attempt to clean up the JSON
-                            cleaned_text = re.sub(r'\s+', ' ', response_text)  # Remove extra whitespace
-                            cleaned_text = re.sub(r'(?<=\{|\[|,)\s*|\s*(?=\}|\]|,)', '', cleaned_text)  # Remove spaces around brackets and commas
-                            try:
-                                json_response = json.loads(cleaned_text)
-                            except json.JSONDecodeError as e:
-                                return "", ValueError(f"Failed to parse response as JSON, even after cleanup: {e}")
+                            json_response = parse_json_response(response_text)
+                        except ValueError as e:
+                            return "", ValueError(f"Failed to parse response as JSON: {e}")
                         
                         return json.dumps(json_response), None
                     

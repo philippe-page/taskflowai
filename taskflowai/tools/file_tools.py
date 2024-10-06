@@ -397,3 +397,151 @@ class FileTools:
         # YAML is parsed into Python data structures, so we can reuse the JSON search method
         return FileTools.search_json(data, search_key, search_value)
 
+
+    @staticmethod
+    def write_markdown(file_path: str, content: str) -> str:
+        """
+        Write content to a markdown file.
+        
+        Args:
+            file_path (str): The path to the file to write to.
+            content (str): The content to write to the file.
+        Returns:
+            str: Confirmation with the path to the file that was written to.
+        """
+        # Ensure the directory exists
+        directory = os.path.dirname(file_path)
+        if directory and not os.path.exists(directory):
+            os.makedirs(directory)
+
+        with open(file_path, 'w') as file:
+            file.write(content)
+        
+        # Get the absolute path
+        abs_path = os.path.abspath(file_path)
+        return f"Markdown file written to {abs_path}"
+    
+
+    @staticmethod
+    def write_csv(file_path: str, data: List[List[str]], delimiter: str = ',') -> Union[bool, str]:
+        """
+        Write data to a CSV file.
+
+        Args:
+            file_path (str): The path to the CSV file.
+            data (List[List[str]]): The data to write to the CSV file.
+            delimiter (str, optional): The delimiter to use in the CSV file. Defaults to ','.
+
+        Returns:
+            Union[bool, str]: True if the data was successfully written, or an error message as a string.
+        """
+        try:
+            with open(file_path, 'w', newline='') as file:
+                writer = csv.writer(file, delimiter=delimiter)
+                writer.writerows(data)
+            return f"Successfully wrote CSV file to {file_path}."
+        except Exception as e:
+            error_msg = f"Error: An unexpected error occurred while writing the CSV file: {e}"
+            print(error_msg)
+            return error_msg
+
+    @staticmethod
+    def get_column(data: List[List[str]], column_index: int) -> Union[List[str], str]:
+        """
+        Extract a specific column from a list of lists representing CSV data.
+
+        Args:
+            data (List[List[str]]): The CSV data as a list of lists.
+            column_index (int): The index of the column to extract (0-based).
+
+        Returns:
+            Union[List[str], str]: The extracted column as a list of strings, or an error message as a string.
+        """
+        try:
+            if not data:
+                error_msg = "Error: Input data is empty."
+                print(error_msg)
+                return error_msg
+            
+            num_columns = len(data[0])
+            if column_index < 0 or column_index >= num_columns:
+                error_msg = f"Error: Invalid column index. Must be between 0 and {num_columns - 1}."
+                print(error_msg)
+                return error_msg
+
+            column = [row[column_index] for row in data]
+            return column
+        except IndexError:
+            error_msg = "Error: Inconsistent number of columns in the input data."
+            print(error_msg)
+            return error_msg
+        except Exception as e:
+            error_msg = f"Error: An unexpected error occurred while extracting the column: {e}"
+            print(error_msg)
+            return error_msg
+
+    @staticmethod
+    def filter_rows(data: List[List[str]], column_index: int, value: str) -> Union[List[List[str]], str]:
+        """
+        Filter rows in a list of lists representing CSV data based on a specific column value.
+
+        Args:
+            data (List[List[str]]): The CSV data as a list of lists.
+            column_index (int): The index of the column to filter on (0-based).
+            value (str): The value to match in the specified column.
+
+        Returns:
+            Union[List[List[str]], str]: The filtered rows as a list of lists, or an error message as a string.
+        """
+        try:
+            if not data:
+                error_msg = "Error: Input data is empty."
+                print(error_msg)
+                return error_msg
+            
+            num_columns = len(data[0])
+            if column_index < 0 or column_index >= num_columns:
+                error_msg = f"Error: Invalid column index. Must be between 0 and {num_columns - 1}."
+                print(error_msg)
+                return error_msg
+
+            filtered_rows = [row for row in data if row[column_index] == value]
+            return filtered_rows
+        except IndexError:
+            error_msg = "Error: Inconsistent number of columns in the input data."
+            print(error_msg)
+            return error_msg
+        except Exception as e:
+            error_msg = f"Error: An unexpected error occurred while filtering rows: {e}"
+            print(error_msg)
+            return error_msg
+
+    @staticmethod
+    def peek_csv(file_path: str, num_lines: int = 5) -> Union[List[List[str]], str]:
+        """
+        Peek at the first few lines of a CSV file.
+
+        Args:
+            file_path (str): The path to the CSV file.
+            num_lines (int, optional): The number of lines to peek. Defaults to 5.
+
+        Returns:
+            Union[List[List[str]], str]: The first few lines of the CSV as a list of lists, or an error message as a string.
+        """
+        try:
+            with open(file_path, 'r', newline='') as csvfile:
+                csv_reader = csv.reader(csvfile)
+                peeked_data = [next(csv_reader) for _ in range(num_lines)]
+            return peeked_data
+        except FileNotFoundError:
+            error_msg = f"Error: File not found at {file_path}"
+            print(error_msg)
+            return error_msg
+        except csv.Error as e:
+            error_msg = f"Error: CSV parsing error - {str(e)}"
+            print(error_msg)
+            return error_msg
+        except Exception as e:
+            error_msg = f"Error: An unexpected error occurred while peeking at the CSV: {str(e)}"
+            print(error_msg)
+            return error_msg

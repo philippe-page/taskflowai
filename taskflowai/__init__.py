@@ -2,14 +2,14 @@
 TaskFlowAI: A lightweight Python framework for building and orchestrating multi-agent systems powered by LLMs.
 """
 
-__version__ = "0.5.4"
+__version__ = "0.5.6"
 
 # Import main classes and core tools
 from .task import Task
 from .agent import Agent
 from .utils import Utils
 from .llm import OpenaiModels, AnthropicModels, OpenrouterModels, OllamaModels, GroqModels, set_verbosity
-from .knowledgebases import FaissKnowledgeBase, PineconeKnowledgeBase
+from .knowledgebases import FaissKnowledgeBase
 from .tools import (
     FileTools,
     EmbeddingsTools,
@@ -21,12 +21,8 @@ from .tools import (
     AmadeusTools,
     CalculatorTools,
     ConversationTools,
-    CSVTools,
     FAISSTools,
-    MarkdownTools,
     PineconeTools,
-    SemanticSplitter,
-    TextSplitter,
 )
 
 # Lazy imports for optional dependencies
@@ -80,8 +76,6 @@ __all__ = [
     "OllamaModels",
     "GroqModels",
     "set_verbosity",
-    "FaissKnowledgeBase",
-    "PineconeKnowledgeBase",
     # List core tools
     "FileTools",
     "EmbeddingsTools",
@@ -93,11 +87,8 @@ __all__ = [
     "AmadeusTools",
     "CalculatorTools",
     "ConversationTools",
-    "CSVTools",
     "FAISSTools",
-    "MarkdownTools",
     "PineconeTools",
-    "SemanticSplitter",
-    "TextSplitter",
+    "FaissKnowledgeBase",
     # Optional tools are not added here
 ]

@@ -67,9 +67,6 @@ class TextToSpeechTools:
             raise ImportError(f"{e.name} is required for audio playback. Install with `pip install {e.name}`")
 
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        cost = TextToSpeechTools.calculate_cost(text, price_per_million_chars=15.0)
-        
-        print(f"Estimated cost: ${cost:.4f}")
 
         response = client.audio.speech.create(
             model="tts-1",
@@ -84,6 +81,7 @@ class TextToSpeechTools:
                 for chunk in response.iter_bytes():
                     file.write(chunk)
         else:
+            time.sleep(0.7)
             # Play the audio directly using pygame
             pygame.mixer.init()
             audio_data = b''.join(chunk for chunk in response.iter_bytes())

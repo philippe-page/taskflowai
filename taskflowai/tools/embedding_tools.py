@@ -87,9 +87,17 @@ class EmbeddingsTools:
             "Content-Type": "application/json"
         }
 
-        # Ensure input_text is a list
+        # Ensure input_text is a list and not empty
         if isinstance(input_text, str):
             input_text = [input_text]
+
+        if not input_text or any(not text.strip() for text in input_text):
+            raise ValueError("Input text cannot be empty")
+
+        # Validate input length
+        max_tokens = 8191  # OpenAI's max token limit
+        if any(len(text) > max_tokens for text in input_text):
+            raise ValueError(f"Input text exceeds maximum token limit of {max_tokens}")
 
         payload = {
             "input": input_text,

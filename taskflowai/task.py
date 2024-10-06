@@ -266,6 +266,9 @@ If you need to make tool calls, consider whether you need to make tool calls suc
                                 # Increment the call count before checking
                                 previous_calls[call_hash] = previous_calls.get(call_hash, 0) + 1
 
+                                # Debug print to check the state of previous_calls
+                                print(f"DEBUG: previous_calls before increment: {previous_calls}")
+
                                 if previous_calls[call_hash] == 3:
                                     # Third occurrence (second repeat), warn the LLM
                                     warning_message = (
@@ -319,8 +322,6 @@ If you need to make tool calls, consider whether you need to make tool calls suc
                                             "result": result
                                         })
 
-                                    # After successful execution, store the hash or increment the count
-                                    previous_calls[call_hash] = previous_calls.get(call_hash, 0) + 1
                                 else:
                                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                     tool_result = f"\n\nYou just attempted to use the tool: '{tool_name}' with the parameters: {json.dumps(tool_params, indent=2)}\nError: Tool '{tool_name}' not found."
@@ -400,9 +401,9 @@ If you need to make tool calls, consider whether you need to make tool calls suc
                 "max_tokens": updated_task.max_tokens,
                 "image_data": updated_task.image_data,
             }
-            # Only add require_json_output if it's explicitly set
-            if updated_task.require_json_output is not None:
-                llm_params["require_json_output"] = updated_task.require_json_output
+            # Only add require_json_output if it's explicitly set to True
+            if updated_task.require_json_output:
+                llm_params["require_json_output"] = True
 
             llm_result = updated_task.llm(updated_task.system_prompt(), updated_task.user_prompt(), **llm_params)
             

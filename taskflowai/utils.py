@@ -1,6 +1,8 @@
 from datetime import datetime
 import base64
-
+import re
+import json
+from typing import Union
 class Utils:
 
     @staticmethod
@@ -47,3 +49,37 @@ class Utils:
             buffer = BytesIO()
             np.save(buffer, resized_img, allow_pickle=False)
             return base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+
+    @staticmethod
+    def parse_json_response(response: Union[str, dict]) -> dict:
+        """
+        Parse a JSON object from a string response or return the dict if already parsed.
+
+        Args:
+            response (Union[str, dict]): The response, either a string containing a JSON object or an already parsed dict.
+
+        Returns:
+            dict: The parsed JSON object.
+
+        Raises:
+            ValueError: If no valid JSON object is found in the response string.
+        """
+        if isinstance(response, dict):
+            return response
+        
+        if isinstance(response, str):
+            try:
+                return json.loads(response)
+            except json.JSONDecodeError:
+                json_match = re.search(r'\{.*?\}', response, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(0)
+                    try:
+                        return json.loads(json_str)
+                    except json.JSONDecodeError:
+                        raise ValueError(f"Failed to parse JSON from response: {response}")
+                else:
+                    raise ValueError(f"No JSON object found in response: {response}")
+        
+        raise ValueError(f"Unexpected response type: {type(response)}")
