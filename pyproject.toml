@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "taskflowai"
-version = "0.5.4"
-description = "TaskFlowAI is a lightweight python framework for building LLM based pipelines and multi-agent teams"
+version = "0.5.6"
+description = "TaskFlowAI is a lightweight, open-source python framework for building LLM based pipelines and multi-agent teams"
 authors = ["Philippe Andre Page <philippeandrepage@gmail.com>"]
 readme = "README.md"
 packages = [{include = "taskflowai"}]
