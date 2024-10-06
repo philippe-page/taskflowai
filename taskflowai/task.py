@@ -267,7 +267,7 @@ If you need to make tool calls, consider whether you need to make tool calls suc
                                 previous_calls[call_hash] = previous_calls.get(call_hash, 0) + 1
 
                                 # Debug print to check the state of previous_calls
-                                print(f"DEBUG: previous_calls before increment: {previous_calls}")
+                                #print(f"DEBUG: previous_calls before increment: {previous_calls}")
 
                                 if previous_calls[call_hash] == 3:
                                     # Third occurrence (second repeat), warn the LLM
