@@ -1,3 +1,17 @@
+# Copyright 2024 Philippe Page and TaskFlowAI Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 from typing import List, Union
 import numpy as np
@@ -5,14 +19,13 @@ from dotenv import load_dotenv
 from .embedding_tools import EmbeddingsTools
 import igraph as ig
 import leidenalg as la
-from sentence_splitter import SentenceSplitter
+from sentence_splitter import SentenceSplitter as ExternalSentenceSplitter
 load_dotenv()
 
 class SemanticSplitter:
     def __init__(self, embedding_provider: str = "openai", embedding_model: str = "text-embedding-3-small"):
         self.embedding_provider = embedding_provider
         self.embedding_model = embedding_model
-        self.splitter = SentenceSplitter(language='en')
 
     @staticmethod
     def chunk_text(text: Union[str, List[str]], rearrange: bool = False, 
@@ -39,7 +52,7 @@ class SemanticSplitter:
         return chunks
 
     def _create_sentence_segments(self, text: str) -> List[str]:
-        sentences = self.splitter.split(text)
+        sentences = SentenceSplitter.split_text_by_sentences(text)
         segments = [sentence.strip() for sentence in sentences]
         print(f"Created {len(segments)} segments")
         return segments
@@ -151,7 +164,7 @@ class SentenceSplitter:
         :param language: The language of the text (default: 'en').
         :return: A list of text chunks.
         """
-        splitter = SentenceSplitter(language)
+        splitter = ExternalSentenceSplitter(language=language)
         sentences = splitter.split(text)
         chunks = []
         

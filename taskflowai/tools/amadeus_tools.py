@@ -1,7 +1,22 @@
+# Copyright 2024 Philippe Page and TaskFlowAI Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple, Union
 from dotenv import load_dotenv
 import requests
+from datetime import datetime, timedelta
 
 class AmadeusTools:
     @staticmethod
@@ -107,34 +122,27 @@ class AmadeusTools:
     def get_cheapest_date(
         origin: str,
         destination: str,
-        departure_date: str,
-        return_date: Optional[str] = None,
+        departure_date: Union[str, Tuple[str, str]],
+        return_date: Optional[Union[str, Tuple[str, str]]] = None,
         adults: int = 1
     ) -> Dict[str, Any]:
         """
-        Find the cheapest travel dates for a given route using the Flight Offers Search API.
+        Find the cheapest flight offer for a given route and date or date range using the Amadeus Flight Offers Search API.
+        Max range of 7 days between start and end date.
 
         Args:
             origin (str): IATA code of the origin airport.
             destination (str): IATA code of the destination airport.
-            departure_date (str): Departure date in YYYY-MM-DD format.
-            return_date (Optional[str]): Return date in YYYY-MM-DD format for round trips. Defaults to None.
+            departure_date (Union[str, Tuple[str, str]]): Departure date in YYYY-MM-DD format or a tuple of (start_date, end_date). 
+            return_date (Optional[Union[str, Tuple[str, str]]]): Return date in YYYY-MM-DD format or a tuple of (start_date, end_date) for round trips. Defaults to None.
             adults (int): Number of adult travelers. Defaults to 1.
 
         Returns:
-            Dict[str, Any]: A dictionary containing the cheapest flight offer information, including:
-                - price: The total price of the cheapest offer.
-                - departureDate: The departure date of the cheapest offer.
-                - returnDate: The return date of the cheapest offer (if applicable).
-                - airline: The airline code of the cheapest offer.
-                - additional details about the flight itinerary.
+            Dict[str, Any]: A dictionary containing the cheapest flight offer information.
 
         Raises:
             requests.exceptions.HTTPError: If the API request fails.
-
-        Note:
-            This method uses the Amadeus Flight Offers Search API to find the cheapest flight
-            for the given route and dates. It returns only one result (the cheapest offer).
+            ValueError: If the date range is more than 7 days.
         """
         access_token = AmadeusTools._get_access_token()
         
@@ -145,25 +153,60 @@ class AmadeusTools:
             "Content-Type": "application/json"
         }
         
-        params = {
-            "originLocationCode": origin,
-            "destinationLocationCode": destination,
-            "departureDate": departure_date,
-            "adults": adults,
-            "max": 1  # We only need the cheapest offer
+        def date_range(start_date: str, end_date: str):
+            start = datetime.fromisoformat(start_date)
+            end = datetime.fromisoformat(end_date)
+            if (end - start).days > 7:
+                return {"error": "Date range cannot exceed 7 days"}
+            date = start
+            while date <= end:
+                yield date.strftime("%Y-%m-%d")
+                date += timedelta(days=1)
+
+        departure_dates = [departure_date] if isinstance(departure_date, str) else list(date_range(*departure_date))
+        return_dates = [return_date] if return_date and isinstance(return_date, str) else (list(date_range(*return_date)) if return_date else [None])
+
+        cheapest_offer = None
+        cheapest_price = float('inf')
+
+        for dep_date in departure_dates:
+            for ret_date in return_dates:
+                params = {
+                    "originLocationCode": origin,
+                    "destinationLocationCode": destination,
+                    "departureDate": dep_date,
+                    "adults": adults,
+                    "max": 1,
+                    "currencyCode": "USD"
+                }
+                if ret_date:
+                    params["returnDate"] = ret_date
+
+                response = requests.get(url, headers=headers, params=params)
+                response.raise_for_status()
+                
+                data = response.json()
+                if data.get('data'):
+                    offer = data['data'][0]
+                    price = float(offer['price']['total'])
+                    if price < cheapest_price:
+                        cheapest_price = price
+                        cheapest_offer = offer
+
+        if not cheapest_offer:
+            return {"error": "No flights found for the given criteria"}
+
+        result = {
+            "price": cheapest_offer['price']['total'],
+            "departureDate": cheapest_offer['itineraries'][0]['segments'][0]['departure']['at'],
+            "airline": cheapest_offer['validatingAirlineCodes'][0],
+            "details": cheapest_offer
         }
         
         if return_date:
-            params["returnDate"] = return_date
+            result["returnDate"] = cheapest_offer['itineraries'][-1]['segments'][0]['departure']['at']
         
-        response = requests.get(url, headers=headers, params=params)
-        try:
-            response.raise_for_status()
-        except requests.exceptions.HTTPError as e:
-            print(f"HTTP Error: {e}")
-            print(f"Response content: {response.text}")
-            raise
-        return response.json()
+        return result
 
     @staticmethod
     def get_flight_inspiration(
@@ -224,3 +267,4 @@ class AmadeusTools:
             print(f"Response content: {response.text}")
             raise
         return response.json()
+

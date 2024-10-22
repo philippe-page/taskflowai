@@ -1,4 +1,19 @@
+# Copyright 2024 Philippe Page and TaskFlowAI Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from typing import List
+from langchain_core.tools import module
 
 class LangchainTools:
     @staticmethod
@@ -104,17 +119,25 @@ class LangchainTools:
 
         Raises:
             ValueError: If an unknown tool name is provided.
+            ImportError: If langchain-community is not installed.
 
         Example:
             >>> info = LangchainTools.get_tool_info("WikipediaQueryRun")
             >>> "name" in info and "description" in info and "module_path" in info
             True
         """
+        cls._check_dependencies()
+        try:
+            from langchain_community.tools import _module_lookup
+        except ImportError:
+            raise ImportError("langchain-community is not installed. Please install it using 'pip install langchain-community'.")
+
         if tool_name not in _module_lookup:
             raise ValueError(f"Unknown Langchain tool: {tool_name}")
         
         module_path = _module_lookup[tool_name]
-        module = __import__(module_path, fromlist=[tool_name])
+        import importlib
+        module = importlib.import_module(module_path)
         tool_class = getattr(module, tool_name)
         
         tool_instance = tool_class()
