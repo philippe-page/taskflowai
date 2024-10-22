@@ -1,10 +1,57 @@
+# Copyright 2024 Philippe Page and TaskFlowAI Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Copyright 2024 Philippe Page and TaskFlowAI Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from typing import List, Dict, Any, Optional
 from ..tools import EmbeddingsTools
 from ..tools import FAISSTools
 import os
 import json
+import uuid
 
 class FaissKnowledgeBase:
+    """
+    A knowledge base that uses FAISS for efficient similarity search.
+    
+    Parameters:
+    - kb_name (str): The name of the knowledge base.
+    - embedding_provider (str): The provider of the embeddings.
+    - embedding_model (str): The model used for the embeddings.
+    - load_from_index (str, optional): The path to load the index from.
+    - chunks (List[str], optional): The chunks of text to initialize the knowledge base with.
+    - save_to_filepath (str, optional): The path to save the index to.
+    - **kwargs: Additional keyword arguments.
+
+    Examples:
+    >>> kb = FaissKnowledgeBase("default", "openai", "text-embedding-3-small")
+    >>> kb = FaissKnowledgeBase("default", "openai", "text-embedding-3-small", load_from_index="index.faiss")
+    >>> kb = FaissKnowledgeBase("default", "openai", "text-embedding-3-small", chunks=["chunk1", "chunk2"])
+    >>> kb = FaissKnowledgeBase("default", "openai", "text-embedding-3-small", chunks=["chunk1", "chunk2"], save_to_filepath="index.faiss")
+    """
     def __init__(self, kb_name: str = "default",
                  embedding_provider: str = "openai",
                  embedding_model: str = "text-embedding-3-small",
@@ -16,7 +63,8 @@ class FaissKnowledgeBase:
         self.embedding_provider = embedding_provider
         self.embedding_model = embedding_model
         self.index_tool = None
-        self.chunks = []
+        self.memories = {}  # Dictionary to store memories with their IDs
+        self.save_filepath = save_to_filepath
 
         try:
             import faiss
@@ -31,18 +79,29 @@ class FaissKnowledgeBase:
             self.load_from_index(load_from_index)
         elif chunks:
             self.initialize_from_chunks(chunks, **kwargs)
-            if save_to_filepath:
-                self.save_index(save_to_filepath)
         else:
             self.initialize_empty(**kwargs)
+
+        if self.save_filepath:
+            self.save_index(self.save_filepath)
+            print(f"Index saved to {self.save_filepath}")
+    
+    def _format_memory(self, content: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Helper method to format a memory with ID and metadata."""
+        return {
+            "id": str(len(self.memories) + 1),  # Simple incremental ID
+            "content": content,
+            "metadata": metadata or {}
+        }
     
     def initialize_from_chunks(self, chunks: List[str],
-                               save_to_filepath: Optional[str] = None,
                                **kwargs) -> None:
         try:
-            self.chunks = chunks
+            formatted_chunks = [self._format_memory(chunk) for chunk in chunks]
+            self.memories = {chunk['id']: chunk for chunk in formatted_chunks}
+            chunk_texts = [chunk['content'] for chunk in formatted_chunks]
 
-            embeddings, _ = EmbeddingsTools.get_embeddings(chunks, provider=self.embedding_provider, model=self.embedding_model)
+            embeddings, _ = EmbeddingsTools.get_embeddings(chunk_texts, provider=self.embedding_provider, model=self.embedding_model)
 
             self.index_tool = FAISSTools(dimension=len(embeddings[0]), metric=kwargs.get("metric", "IP"))
             self.index_tool.create_index()
@@ -51,10 +110,8 @@ class FaissKnowledgeBase:
             np_vectors = self.np.array(embeddings).astype('float32')
             self.index_tool.add_vectors(np_vectors)
 
-            self.index_tool.set_metadata('chunks', chunks)
+            self.index_tool.set_metadata('memories', list(self.memories.values()))
 
-            if save_to_filepath:
-                self.index_tool.save_index(save_to_filepath)
         except Exception as e:
             raise Exception(f"Error initializing knowledgebase: {str(e)}")
     
@@ -88,9 +145,9 @@ class FaissKnowledgeBase:
             with open(metadata_file, 'r') as f:
                 metadata = json.load(f)
 
-            self.chunks = metadata.get('chunks')
-            if self.chunks is None:
-                raise ValueError(f"No chunks found in metadata for '{self.kb_name}'")
+            self.memories = {memory['id']: memory for memory in metadata.get('memories', [])}
+            if not self.memories:
+                raise ValueError(f"No memories found in metadata for '{self.kb_name}'")
 
             self.embedding_provider = self.index_tool.embedding_provider
             self.embedding_model = self.index_tool.embedding_model
@@ -102,7 +159,17 @@ class FaissKnowledgeBase:
             raise Exception(f"Error loading knowledgebase: {str(e)}")
     
     def query(self, query: str, top_k: int = 6) -> List[Dict[str, Any]]:
-        if not self.chunks:
+        """
+        Query the knowledge base for the most relevant unique chunks.
+        
+        Args:
+            query (str): The query to search for.
+            top_k (int): The number of unique results to return.
+        
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries, each containing the id, score, and content of a relevant unique chunk.
+        """
+        if not self.memories:
             return []
         try:
             if self.index_tool is None:
@@ -111,37 +178,68 @@ class FaissKnowledgeBase:
             query_embedding, _ = EmbeddingsTools.get_embeddings([query], provider=self.embedding_provider, model=self.embedding_model)
 
             query_vector = self.np.array(query_embedding).astype('float32')
+            
+            # Increase the number of results to search for to ensure we have enough unique results
             distances, indices = self.index_tool.search_vectors(
                 query_vectors=query_vector, top_k=top_k)
 
             formatted_results = []
+            seen_contents = set()
+            
             for idx, dist in zip(indices[0], distances[0]):
-                chunk_index = int(idx)
+                memory = list(self.memories.values())[idx]
+                content = memory['content']
+                
+                # Skip if we've already seen this content
+                if content in seen_contents:
+                    continue
+                
+                seen_contents.add(content)
                 formatted_results.append({
-                    "id": str(chunk_index),
+                    "id": memory['id'],
                     "score": round(float(dist), 4),
-                    "content": self.chunks[chunk_index]
+                    "content": content
                 })
+                
+                # Break if we have enough unique results
+                if len(formatted_results) == top_k:
+                    break
 
             return formatted_results
 
         except Exception as e:
             raise Exception(f"Error querying knowledgebase: {str(e)}")
     
-    def add_memory(self, memory: str) -> Dict[str, Any]:
+    def add_memory(self, memory: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Add a memory to the knowledge base and save the updated index.
+        
+        Args:
+            memory (str): The memory to add.
+        
+        Returns:
+            Dict[str, Any]: A dictionary containing the success status and message.
+        """
         try:
             if self.index_tool is None:
                 raise ValueError(f"Knowledgebase '{self.kb_name}' is not initialized. Please initialize or load the knowledgebase first.")
+
+            memory_obj = self._format_memory(memory, metadata)
+            memory_id = memory_obj['id']
 
             new_embedding, _ = EmbeddingsTools.get_embeddings([memory], provider=self.embedding_provider, model=self.embedding_model)
             new_vector = self.np.array(new_embedding).astype('float32')
 
             self.index_tool.add_vectors(new_vector)
-            self.chunks.append(memory)
-            self.index_tool.set_metadata('chunks', self.chunks)
+            self.memories[memory_id] = memory_obj
+            self.index_tool.set_metadata('memories', list(self.memories.values()))
 
-            return {"success": True, "message": "Memory added successfully"}
+            if self.save_filepath:
+                self.save_index(self.save_filepath)
+            else:
+                print("Warning: No save path set for the index. Changes are only in memory.")
 
+            return {"success": True, "message": "Memory added successfully and index saved", "id": memory_id}
         except Exception as e:
             error_message = f"Error adding memory to knowledgebase: {str(e)}"
             print(error_message)
@@ -152,19 +250,12 @@ class FaissKnowledgeBase:
             if self.index_tool is None:
                 raise ValueError(f"Knowledgebase '{self.kb_name}' is not initialized or loaded.")
             
-            filepath = save_to_filepath or self.index_tool.last_save_path
+            filepath = save_to_filepath or self.save_filepath
             if not filepath:
                 raise ValueError("No filepath provided and no known filepath for the index.")
 
-            # Create a 'faiss_indexes' folder in the same directory as the filepath
-            indexes_dir = os.path.join(os.path.dirname(filepath), 'faiss_indexes')
-            os.makedirs(indexes_dir, exist_ok=True)
-
-            # Update the filepath to save in the 'faiss_indexes' folder
-            filename = os.path.basename(filepath)
-            new_filepath = os.path.join(indexes_dir, filename)
-
-            self.index_tool.save_index(new_filepath)
-            self.index_tool.last_save_path = new_filepath
+            self.index_tool.save_index(filepath)
+            self.save_filepath = filepath
+            #print(f"Index saved to {filepath}")
         except Exception as e:
             raise Exception(f"Error saving knowledgebase index: {str(e)}")
