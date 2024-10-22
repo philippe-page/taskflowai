@@ -1,9 +1,8 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) 
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](https://github.com/philippe-page/taskflowai/issues)
 [![Downloads](https://static.pepy.tech/badge/taskflowai)](https://pepy.tech/project/taskflowai)
-[![Twitter](https://img.shields.io/twitter/follow/philippe__page?label=Follow%20@philippe__page&style=social)](https://twitter.com/philippe__page)
 [![PyPI version](https://badge.fury.io/py/taskflowai.svg)](https://pypi.org/project/taskflowai/)
-
+[![Twitter](https://img.shields.io/twitter/follow/philippe__page?label=Follow%20@philippe__page&style=social)](https://twitter.com/philippe__page)
 
 
 # TaskflowAI: Task-Centric Framework for LLM-Driven Pipelines and Multi-Agent Teams
