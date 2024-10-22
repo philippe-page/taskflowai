@@ -1,3 +1,17 @@
+# Copyright 2024 Philippe Page and TaskFlowAI Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from pydantic import BaseModel
 from pydantic.fields import Field
 from typing import Callable, Optional, Union, Dict, List, Any, Set, Tuple
@@ -154,7 +168,7 @@ class Task(BaseModel):
         tool_usage_history = ""
         previous_calls = {}  # Reset this dictionary for each new task execution
 
-        max_iterations = 6
+        max_iterations = 12
         for _ in range(max_iterations):
             
             # Set these variables based on whether there's been any tool usage
@@ -266,8 +280,13 @@ If you need to make tool calls, consider whether you need to make tool calls suc
                                 # Increment the call count before checking
                                 previous_calls[call_hash] = previous_calls.get(call_hash, 0) + 1
 
-                                # Debug print to check the state of previous_calls
-                                #print(f"DEBUG: previous_calls before increment: {previous_calls}")
+                                # Always print the tool call information
+                                print(f"{COLORS['LABEL']}Tool Use: {COLORS['TOOL_NAME']}{tool_name}{COLORS['RESET']}")
+                                print(f"{COLORS['LABEL']}Parameters:")
+                                for key, value in tool_params.items():
+                                    print(f"  {COLORS['LABEL']}{key}: {COLORS['PARAM_VALUE']}{value}{COLORS['RESET']}")
+                                print() 
+                                print(COLORS['RESET'], end='')
 
                                 if previous_calls[call_hash] == 3:
                                     # Third occurrence (second repeat), warn the LLM
@@ -285,13 +304,6 @@ If you need to make tool calls, consider whether you need to make tool calls suc
                                     print(f"{COLORS['WARNING']}Tool call for '{tool_name}' has been repeated verbatim four times. "
                                           f"Exiting loop to proceed to the final response.{COLORS['RESET']}")
                                     return tool_usage_history
-
-                                print(f"{COLORS['LABEL']}Tool Use: {COLORS['TOOL_NAME']}{tool_name}{COLORS['RESET']}")
-                                print(f"{COLORS['LABEL']}Parameters:")
-                                for key, value in tool_params.items():
-                                    print(f"  {COLORS['LABEL']}{key}: {COLORS['PARAM_VALUE']}{value}{COLORS['RESET']}")
-                                print() 
-                                print(COLORS['RESET'], end='')
 
                                 # Create a dictionary of tools with function names as keys
                                 tools_dict = {func.__name__.lower(): func for func in self.tools}
