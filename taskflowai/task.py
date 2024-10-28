@@ -1,16 +1,4 @@
-# Copyright 2024 Philippe Page and TaskFlowAI Contributors
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Copyright 2024 TaskFlowAI Contributors. Licensed under Apache License 2.0.
 
 from pydantic import BaseModel
 from pydantic.fields import Field
@@ -198,9 +186,9 @@ The original task instruction:
 {self.instruction}
 =====
 
-You are now determining if you need to call {more}tools to gather {more}information or perform {additional}actions to complete the given task, or if the task is complete and you are ready to provide your final response. 
+You are now determining if you need to call {more}tools to gather {more}information or perform {additional}actions to complete the given task, or if you are done using tools and are ready to proceed to the final response.. 
 
-Now respond with a JSON object in one of these formats to either request tool calls, or to indicate you are ready to provide your final response:
+Now respond with a JSON object in one of these formats to either request tool calls, or to indicate you are done using tools and ready to provide your final response:
 
 If tool calls are still needed for information gathering or task execution:
 {{
@@ -217,10 +205,10 @@ If tool calls are still needed for information gathering or task execution:
 
 If no more tool calls are required:
 {{
-    "status": "READY"
+    "status": "END_TOOL_USAGE"
 }}
 
-If you need to make tool calls, consider whether you need to make tool calls successively or all at once. If the result of one tool call is required as input for another tool, make your calls one at a time. If multiple tool calls can be made independently, you may request them all at once. Successive tool calls can also be made one after the other, allowing you to wait for the result of one tool call before making another if needed. Now respond with a JSON object that *either requests tool calls, or indicates you are ready** to provide your final response. Do NOT comment before or after the JSON; return *only a valid JSON* in any case.
+If you need to make tool calls, consider whether you need to make tool calls successively or all at once. If the result of one tool call is required as input for another tool, make your calls one at a time. If multiple tool calls can be made independently, you may request them all at once. Successive tool calls can also be made one after the other, allowing you to wait for the result of one tool call before making another if needed. Now respond with a JSON object that *either requests tool calls, or exits the tool loop** to provide your final response. Do NOT comment before or after the JSON; return *only a valid JSON* in any case.
 """,
                 context=context,
                 llm=self.llm,
@@ -265,7 +253,7 @@ If you need to make tool calls, consider whether you need to make tool calls suc
                         if 'tool_calls' in tool_requests:
                             tool_calls = tool_requests['tool_calls']
                             if not tool_calls:  # Empty tool_calls array
-                                print(f"{COLORS['LABEL']}Status: {COLORS['PARAM_VALUE']}READY{COLORS['RESET']}")
+                                print(f"{COLORS['LABEL']}Status: {COLORS['PARAM_VALUE']}END_TOOL_USAGE{COLORS['RESET']}")
                                 print() 
                                 print(COLORS['RESET'], end='')
                                 return tool_usage_history
@@ -291,18 +279,18 @@ If you need to make tool calls, consider whether you need to make tool calls suc
                                 if previous_calls[call_hash] == 3:
                                     # Third occurrence (second repeat), warn the LLM
                                     warning_message = (
-                                        f"\n\nWarning: You've repeated the exact same tool call for '{tool_name}'."
-                                        "**Please try a different tool, different parameters, or consider that you may be ready to proceed with your final response."
+                                        f"\n\nWarning: You've repeated the exact same tool call for '{tool_name}' three times."
+                                        "**Please try a different tool, different parameters, or consider proceeding to your final response."
                                     )
                                     tool_usage_history += warning_message
                                     tool_loop_task.context += warning_message
-                                    print(f"{COLORS['WARNING']}Warning: Tool call for '{tool_name}' has been repeated verbatim three times. "
+                                    print(f"{COLORS['WARNING']}Warning: Tool call for '{tool_name}' has been made three times. "
                                           f"Skipping execution and notifying LLM.{COLORS['RESET']}")
                                     continue
                                 elif previous_calls[call_hash] == 4:
                                     # Fourth occurrence (third repeat), exit the loop
-                                    print(f"{COLORS['WARNING']}Tool call for '{tool_name}' has been repeated verbatim four times. "
-                                          f"Exiting loop to proceed to the final response.{COLORS['RESET']}")
+                                    print(f"{COLORS['WARNING']}Tool call for '{tool_name}' has been made four times. "
+                                          f"Forcing exit from tool loop.{COLORS['RESET']}")
                                     return tool_usage_history
 
                                 # Create a dictionary of tools with function names as keys
@@ -341,14 +329,14 @@ If you need to make tool calls, consider whether you need to make tool calls suc
                                     tool_loop_task.context += tool_result
                                     print(f"{COLORS['WARNING']}[{timestamp}] Tool Error: Tool '{tool_name}' not found.{COLORS['RESET']}")
 
-                        elif 'status' in tool_requests and tool_requests['status'] == 'READY':
-                            print(f"{COLORS['LABEL']}Status: {COLORS['PARAM_VALUE']}READY{COLORS['RESET']}")
+                        elif 'status' in tool_requests and tool_requests['status'] == 'END_TOOL_USAGE':
+                            print(f"{COLORS['LABEL']}Status: {COLORS['PARAM_VALUE']}END_TOOL_USAGE{COLORS['RESET']}")
                             print() 
                             print(COLORS['RESET'], end='')
                             return tool_usage_history
                         
                         elif not tool_requests:
-                            print(f"{COLORS['LABEL']}Status: {COLORS['PARAM_VALUE']}READY{COLORS['RESET']}")
+                            print(f"{COLORS['LABEL']}Status: {COLORS['PARAM_VALUE']}END_TOOL_USAGE{COLORS['RESET']}")
                             print()
                             print(COLORS['RESET'], end='')
                             return tool_usage_history
@@ -356,7 +344,7 @@ If you need to make tool calls, consider whether you need to make tool calls suc
                         else:
                             raise ValueError("Invalid response format")
                     elif isinstance(tool_requests, list) and not tool_requests:
-                        print(f"{COLORS['LABEL']}Status: {COLORS['PARAM_VALUE']}READY{COLORS['RESET']}")
+                        print(f"{COLORS['LABEL']}Status: {COLORS['PARAM_VALUE']}END_TOOL_USAGE{COLORS['RESET']}")
                         print()
                         print(COLORS['RESET'], end='')
                         return tool_usage_history
