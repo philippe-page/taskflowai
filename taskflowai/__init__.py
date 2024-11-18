@@ -3,13 +3,13 @@ TaskFlowAI: A lightweight Python framework for building and orchestrating multi-
 """
 # Copyright 2024 TaskFlowAI Contributors. Licensed under Apache License 2.0.
 
-__version__ = "0.5.11"
+__version__ = "0.5.13"
 
 # Import main classes and core tools
 from .task import Task
 from .agent import Agent
 from .utils import Utils
-from .llm import OpenaiModels, AnthropicModels, OpenrouterModels, OllamaModels, GroqModels, set_verbosity
+from .llm import OpenaiModels, AnthropicModels, OpenrouterModels, OllamaModels, GroqModels, TogetheraiModels, set_verbosity
 from .knowledgebases import FaissKnowledgeBase
 from .tools import (
     FileTools,
@@ -72,6 +72,7 @@ __all__ = [
     "OpenrouterModels",
     "OllamaModels",
     "GroqModels",
+    "TogetheraiModels",
     "set_verbosity",
     # List core tools
     "FileTools",

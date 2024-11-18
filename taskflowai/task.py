@@ -377,7 +377,10 @@ If you need to make tool calls, consider whether you need to make tool calls suc
         else:
             final_context = self.context or ''
 
-        instruction = f"Now focus on addressing the instruction:\n{self.instruction}"
+        instruction = ""
+        if self.tools:
+            instruction = "You have just completed your tool use loop, and you are now writing your final response."
+        instruction += f"Don't try to make any more tool calls, and keep in mind that after your final response is sent, you will have to wait for the next input.\n\nFocus on addressing the instruction:\n{self.instruction}"
         if self.require_json_output:
             instruction += "\nDo NOT comment before or after the JSON. Provide only a valid JSON object as your response."
 
@@ -388,7 +391,7 @@ If you need to make tool calls, consider whether you need to make tool calls suc
             context=final_context,
             instruction=instruction,
             llm=self.llm,
-            tools=self.tools,
+            tools=self.tools, 
             image_data=self.image_data,
             temperature=self.temperature,
             max_tokens=self.max_tokens,

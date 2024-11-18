@@ -273,6 +273,14 @@ class OpenaiModels:
         return OpenaiModels.send_openai_request(system_prompt, user_prompt, "gpt-4", image_data, temperature, max_tokens, require_json_output)
     
     @staticmethod
+    def o1_preview(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "o1-preview", image_data, temperature, max_tokens, require_json_output)
+    
+    @staticmethod
+    def o1_mini(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenaiModels.send_openai_request(system_prompt, user_prompt, "o1-mini", image_data, temperature, max_tokens, require_json_output)
+    
+    @staticmethod
     def custom_model(model_name: str):
         def wrapper(system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
             return OpenaiModels.send_openai_request(system_prompt, user_prompt, model_name, image_data, temperature, max_tokens, require_json_output)
@@ -460,6 +468,10 @@ class AnthropicModels:
     @staticmethod
     def sonnet_3_5(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False, stop_sequences: Optional[List[str]] = None) -> Tuple[str, Optional[Exception]]:
         return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-5-sonnet-20240620", image_data, temperature, max_tokens, require_json_output, stop_sequences)
+
+    @staticmethod
+    def haiku_3_5(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False, stop_sequences: Optional[List[str]] = None) -> Tuple[str, Optional[Exception]]:
+        return AnthropicModels.call_anthropic(system_prompt, user_prompt, "claude-3-5-haiku-20240620", image_data, temperature, max_tokens, require_json_output, stop_sequences)
 
     @staticmethod
     def custom_model(model_name: str):
@@ -675,6 +687,10 @@ class OpenrouterModels:
         return OpenrouterModels.call_openrouter_api("anthropic/claude-3-haiku", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
 
     @staticmethod
+    def haiku_3_5(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("anthropic/claude-3.5-haiku", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
+
+    @staticmethod
     def sonnet(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
         return OpenrouterModels.call_openrouter_api("anthropic/claude-3-sonnet", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
     
@@ -706,6 +722,14 @@ class OpenrouterModels:
     def gpt_4o_mini(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
         return OpenrouterModels.call_openrouter_api("openai/gpt-4o-mini", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
     
+    @staticmethod
+    def o1_preview(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("openai/o1-preview", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
+    
+    @staticmethod
+    def o1_mini(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("openai/o1-mini", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
+
     @staticmethod
     def gemini_flash_1_5(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
         return OpenrouterModels.call_openrouter_api("google/gemini-flash-1.5", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
@@ -805,6 +829,35 @@ class OpenrouterModels:
     @staticmethod
     def llama_3_1_405b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
         return OpenrouterModels.call_openrouter_api("meta-llama/llama-3.1-405b-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
+
+    @staticmethod
+    def qwen_2_5_coder_32b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("qwen/qwen-2.5-coder-32b-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
+
+    @staticmethod
+    def claude_3_5_haiku(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("anthropic/claude-3-5-haiku", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
+
+    @staticmethod
+    def ministral_8b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("mistralai/ministral-8b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
+
+    @staticmethod
+    def ministral_3b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("mistralai/ministral-3b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
+
+    @staticmethod
+    def llama_3_1_nemotron_70b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("nvidia/llama-3.1-nemotron-70b-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
+
+    @staticmethod
+    def gemini_flash_1_5_8b(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("google/gemini-flash-1.5-8b", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
+
+    @staticmethod
+    def llama_3_2_3b_instruct(system_prompt: str, user_prompt: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        return OpenrouterModels.call_openrouter_api("meta-llama/llama-3.2-3b-instruct", system_prompt, user_prompt, image_data, temperature, max_tokens, require_json_output)
+
 
     @staticmethod
     def custom_model(model_name: str):
@@ -1253,4 +1306,139 @@ class GroqModels:
     def custom_model(model_name: str):
         def wrapper(system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
             return GroqModels.call_groq(system_prompt, user_prompt, model_name, image_data, temperature, max_tokens, require_json_output)
+        return wrapper
+
+class TogetheraiModels:
+    @staticmethod
+    def call_together(system_prompt: str, user_prompt: str, model: str, image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+        JSON_SUPPORTED_MODELS = {
+            "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+            "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+            "mistralai/Mixtral-8x7B-Instruct-v0.1",
+            "mistralai/Mistral-7B-Instruct-v0.1"
+        }
+
+        # Determine if we should use JSON mode
+        use_json = require_json_output and model in JSON_SUPPORTED_MODELS
+        
+        if require_json_output and model not in JSON_SUPPORTED_MODELS:
+            print(f"JSON output requested but not supported for model {model}. Falling back to standard output.")
+
+        print_model_request("Together AI", model)
+        if debug:
+            print_debug(f"Entering call_together function")
+            print_debug(f"Parameters: system_prompt={system_prompt}, user_prompt={user_prompt}, model={model}, image_data={image_data}, temperature={temperature}, max_tokens={max_tokens}, require_json_output={require_json_output}")
+
+        max_retries = 6
+        base_delay = 5
+        max_delay = 60
+
+        print_api_request(f"{system_prompt}\n{user_prompt}")
+        if image_data:
+            print_api_request("Images: Included")
+
+        spinner = Halo(text='Sending request to Together AI...', spinner='dots')
+        stop_spinner = threading.Event()
+
+        def spin():
+            spinner.start()
+            while not stop_spinner.is_set():
+                time.sleep(0.1)
+            spinner.stop()
+
+        spinner_thread = threading.Thread(target=spin)
+        spinner_thread.start()
+
+        try:
+            for attempt in range(max_retries):
+                print_debug(f"Attempt {attempt + 1}/{max_retries}")
+                try:
+                    api_key = os.getenv("TOGETHERAI_API_KEY")
+                    if not api_key:
+                        return "", ValueError("TOGETHERAI_API_KEY environment variable is not set")
+
+                    print_debug(f"API Key: {api_key[:5]}...{api_key[-5:]}")
+                    client = OpenAI(api_key=api_key, base_url="https://api.together.xyz/v1")
+                    print_debug(f"Together client initialized via OpenAI")
+
+                    messages = [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": []}
+                    ]
+
+                    if image_data:
+                        print_debug("Processing image data")
+                        if isinstance(image_data, str):
+                            image_data = [image_data]
+                        
+                        for i, image in enumerate(image_data, start=1):
+                            messages[1]["content"].append({"type": "text", "text": f"Image {i}:"})
+                            if image.startswith(('http://', 'https://')):
+                                print_debug(f"Image {i} is a URL")
+                                messages[1]["content"].append({
+                                    "type": "image_url",
+                                    "image_url": {"url": image}
+                                })
+                            else:
+                                print_debug(f"Image {i} is base64")
+                                messages[1]["content"].append({
+                                    "type": "image_url",
+                                    "image_url": {"url": f"data:image/jpeg;base64,{image}"}
+                                })
+                        
+                        messages[1]["content"].append({"type": "text", "text": user_prompt})
+                    else:
+                        messages[1]["content"] = user_prompt
+
+                    print_debug(f"Final messages structure: {messages}")
+
+                    response = client.chat.completions.create(
+                        model=model,
+                        messages=messages,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        response_format={"type": "json_object"} if use_json else None
+                    )
+
+                    print_debug(f"API response received")
+                    response_text = response.choices[0].message.content
+                    print_debug(f"Processed response text (truncated): {response_text[:100]}...")
+
+                    if require_json_output:
+                        try:
+                            json_response = parse_json_response(response_text)
+                        except ValueError as e:
+                            return "", ValueError(f"Failed to parse response as JSON: {e}")
+                        return json.dumps(json_response), None
+
+                    return response_text.strip(), None
+
+                except Exception as e:
+                    print_error(f"An error occurred: {e}")
+                    print_debug(f"Error details: {type(e).__name__}, {e}")
+                    if attempt < max_retries - 1:
+                        retry_delay = min(max_delay, base_delay * (2 ** attempt))
+                        jitter = random.uniform(0, 0.1 * retry_delay)
+                        total_delay = retry_delay + jitter
+                        print_api_request(f"Retrying in {total_delay:.2f} seconds...")
+                        time.sleep(total_delay)
+                    else:
+                        return "", e
+
+            print_debug("Max retries reached")
+            return "", Exception("Max retries reached")
+
+        finally:
+            stop_spinner.set()
+            spinner_thread.join()
+            if 'response_text' in locals() and response_text:
+                spinner.succeed('Request completed')
+                print_api_response(response_text.strip())
+            else:
+                spinner.fail('Request failed')
+
+    @staticmethod
+    def custom_model(model_name: str):
+        def wrapper(system_prompt: str = "", user_prompt: str = "", image_data: Union[List[str], str, None] = None, temperature: float = 0.7, max_tokens: int = 4000, require_json_output: bool = False) -> Tuple[str, Optional[Exception]]:
+            return TogetheraiModels.call_together(system_prompt, user_prompt, model_name, image_data, temperature, max_tokens, require_json_output)
         return wrapper
