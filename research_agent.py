@@ -1,5 +1,7 @@
 from taskflowai import Task, Agent, OpenrouterModels, WebTools
 
+# Requires SERPER_API_KEY and OPENROUTER_API_KEY
+
 agent = Agent(
     role="research assistant",
     goal="answer user queries",
