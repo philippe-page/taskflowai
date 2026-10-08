@@ -47,6 +47,7 @@ fake-useragent = "*"
 waitress = "*"
 
 [tool.poetry.extras]
+parallel_tools = ["mcp"]
 langchain_tools = [
     "langchain-core",
     "langchain-community",
@@ -67,6 +68,10 @@ fred_tools = [
 
 [tool.poetry.dependencies.langchain-core]
 version = "*"
+optional = true
+
+[tool.poetry.dependencies.mcp]
+version = ">=1.10,<2.0"
 optional = true
 
 [tool.poetry.dependencies.langchain-community]
