@@ -106,6 +106,44 @@ TaskflowAI comes with a set of built-in tools that provide a wide range of funct
 - LangchainTools: A wrapper for integrating Langchain tools to allow agents to use tools in the Langchain catalog.
 - Custom Tools: You can also create your own custom tools to add any functionality you need.
 
+### Parallel Search MCP (optional)
+
+Install the extra with `pip install 'taskflowai[parallel_tools]'` (or
+`pip install '.[parallel_tools]'` from a checkout). [Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp)
+provides free, anonymous web search and page excerpts over Streamable HTTP at
+`https://search.parallel.ai/mcp`. No Parallel API key is needed. The free tier has
+rate limits; your chosen LLM provider still needs its own configuration and may
+charge for inference.
+
+```python
+from taskflowai import Agent, Task, OpenaiModels, ParallelTools
+
+# Reuse one instance within a conversation to keep a stable MCP session ID.
+parallel = ParallelTools()
+research_agent = Agent(
+    role="research assistant",
+    goal="answer questions using web sources",
+    llm=OpenaiModels.gpt_4o,
+    tools={parallel.search, parallel.fetch},
+)
+result = Task.create(
+    agent=research_agent,
+    instruction="Search for Python asyncio documentation and explain task cancellation. "
+                "Use page fetching only if the search excerpts are insufficient. Cite URLs.",
+)
+print(result)
+```
+
+You can also call `parallel.search(objective="Find Python asyncio documentation",
+search_queries=["Python asyncio task cancellation"])` or
+`parallel.fetch(urls=["https://docs.python.org/3/library/asyncio-task.html"],
+objective="Task cancellation")` directly. Both return dictionaries with URLs and
+excerpts, preserving server warnings and per-URL fetch errors. Each call has a
+30-second overall timeout, adjustable with `timeout`. MCP errors raise exceptions.
+These tools are synchronous, like TaskflowAI's task execution; use
+`asyncio.to_thread` when calling them from async code. Existing tools and examples
+keep their current selections.
+
 ## Multi-Agent Teams
 
 TaskflowAI allows you to create multi-agent teams that can use tools to complete a series of tasks. Here's an example of a travel planning agent that uses multiple agents to research and plan a trip:

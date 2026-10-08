@@ -11,6 +11,7 @@ from .github_tools import GitHubTools
 from .faiss_tools import FAISSTools
 from .pinecone_tools import PineconeTools
 from .web_tools import WebTools
+from .parallel_tools import ParallelTools
 from .wikipedia_tools import WikipediaTools
 
 __all__ = [
@@ -25,6 +26,7 @@ __all__ = [
     'GitHubTools',
     'PineconeTools',
     'WebTools',
+    'ParallelTools',
     'WikipediaTools'
 ]
 
